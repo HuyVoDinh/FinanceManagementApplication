@@ -9,8 +9,11 @@
   <ItemGroup>
     <Folder Include="DTOs\" />
     <Folder Include="Interface\Services\" />
-    <Folder Include="Interface\Repositories\" />
     <Folder Include="Services\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FinancialManagementApplication.Domain\FinancialManagementApplication.Domain.csproj" />
   </ItemGroup>
 
 </Project>
