@@ -52,3 +52,4 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+/FinanceManagementApplication.API/.vs/FinanceManagementApplication.API.slnx
