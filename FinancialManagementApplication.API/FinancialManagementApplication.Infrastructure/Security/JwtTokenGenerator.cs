@@ -12,7 +12,7 @@ using FinancialManagementApplication.Application.Interface.Securitiy;
 
 namespace FinancialManagementApplication.Infrastructure.Security
 {
-    internal class JwtTokenGenerator : IJwtTokenGenerator
+    public class JwtTokenGenerator : IJwtTokenGenerator
     {
         private readonly IConfiguration _configuration;
 
