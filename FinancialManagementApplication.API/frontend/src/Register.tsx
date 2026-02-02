@@ -1,26 +1,23 @@
 import { useState } from "react";
-import { login } from "./services/authService";
+import { register } from "./services/authService";
 
-export default function Login() {
+export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
-  const handleLogin = async () => {
+  const handleRegister = async () => {
     try {
-      const result = await login(email, password);
-      localStorage.setItem("token", result.token);
-      setMessage("Login success");
-      console.log("JWT:", result.token);
+      await register(email, password);
+      setMessage("Register success!");
     } catch {
-      setMessage("Login failed");
+      setMessage("Register failed");
     }
   };
 
   return (
     <div>
-      <h2>Login</h2>
-
+      <h2>Register</h2>
       <input
         placeholder="Email"
         value={email}
@@ -36,9 +33,8 @@ export default function Login() {
       />
       <br />
 
-      <button onClick={handleLogin}>Login</button>
+      <button onClick={handleRegister}>Register</button>
       <p>{message}</p>
     </div>
   );
 }
-
