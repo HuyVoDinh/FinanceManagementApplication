@@ -1,4 +1,5 @@
 using FinanceManagementApplication.Application.Interface.Repositories;
+using FinancialManagementApplication.Application.Interface.Repositories;
 using FinancialManagementApplication.Application.Interface.Securitiy;
 using FinancialManagementApplication.Application.Services;
 using FinancialManagementApplication.Infrastructure.Data;
@@ -25,6 +26,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection")
     )
 );
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 
 builder.Services.AddCors(options =>
 {

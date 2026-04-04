@@ -8,8 +8,8 @@ namespace FinancialManagementApplication.Domain.Entities
     public class User
     {
         public Guid UserID { get; set; }
-        public string firstName { get; set; }
-        public string lastName { get; set; }
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
         public string PhoneNumber { get; set; }
         public DateTime DateOfBirth { get; set; }
         public Guid AccountID { get; set; }

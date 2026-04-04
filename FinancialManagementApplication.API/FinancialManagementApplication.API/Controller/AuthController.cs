@@ -1,4 +1,5 @@
 ﻿using FinancialManagementApplication.Application.DTOs.Auth;
+using FinancialManagementApplication.Application.DTOs.User;
 using FinancialManagementApplication.Application.Services;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
@@ -22,9 +23,9 @@ public class AuthController : ControllerBase
     /// Register new account
     /// </summary>
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+    public async Task<IActionResult> Register([FromBody] RegisterRequest request, UserDTO user)
     {
-        var result = await _authService.RegisterAsync(request);
+        var result = await _authService.RegisterAsync(request, user);
         return Ok(result);
     }
 

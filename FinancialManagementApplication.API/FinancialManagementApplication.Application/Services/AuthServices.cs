@@ -6,12 +6,16 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using BCrypt.Net;
+using FinancialManagementApplication.Application.Interface.Repositories;
+using FinancialManagementApplication.Domain.Entities;
+using FinancialManagementApplication.Application.DTOs.User;
 
 namespace FinancialManagementApplication.Application.Services
 {
     public class AuthService
     {
         private readonly IAccountRepository _repo;
+        private readonly IUserRepository _userRepo;
         private readonly IJwtTokenGenerator _jwt;
 
         public AuthService(IAccountRepository repo, IJwtTokenGenerator jwt)
@@ -20,7 +24,14 @@ namespace FinancialManagementApplication.Application.Services
             _jwt = jwt;
         }
 
-        public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
+        public AuthService(IAccountRepository repo, IUserRepository userRepo, IJwtTokenGenerator jwt)
+        {
+            _repo = repo;
+            _userRepo = userRepo;
+            _jwt = jwt;
+        }
+
+        public async Task<AuthResponse> RegisterAsync(RegisterRequest request, UserDTO userDTO)
         {
             var existing = await _repo.GetByEmailAsync(request.Email);
             if (existing != null)
@@ -33,7 +44,18 @@ namespace FinancialManagementApplication.Application.Services
                 passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password)
             };
 
+            var user = new User
+            {
+                UserID = Guid.NewGuid(),
+                FirstName = userDTO.FirstName,
+                LastName = userDTO.LastName,
+                PhoneNumber = userDTO.PhoneNumber,
+                DateOfBirth = userDTO.DateOfBirth,
+                AccountID = account.AccountID
+            };
+
             await _repo.AddAsync(account);
+            await _userRepo.CreateUserAsync(user);
 
             return new AuthResponse
             {
