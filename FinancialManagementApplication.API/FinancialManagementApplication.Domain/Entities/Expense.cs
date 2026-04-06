@@ -12,7 +12,6 @@ namespace FinancialManagementApplication.Domain.Entities
         public decimal Amount { get; set; }
         public Guid CategoryID { get; set; }
         public Guid AccountID { get; set; }
-        public Account Account { get; set; } = default!;
         public DateTime CreateAt { get; set; }
         public DateTime UpdateAt { get; set; }
     }

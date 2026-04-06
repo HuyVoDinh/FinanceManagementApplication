@@ -12,6 +12,7 @@ namespace FinancialManagementApplication.Application.DTOs.User
         public string LastName { get; set; } = string.Empty;
         public string PhoneNumber { get; set; } = string.Empty;
         public DateTime DateOfBirth { get; set; } 
+        public Guid AccountID { get; set; }
         public DateTime CreateAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdateAt { get; set; } = DateTime.UtcNow;
     }

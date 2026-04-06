@@ -18,12 +18,6 @@ namespace FinancialManagementApplication.Application.Services
         private readonly IUserRepository _userRepo;
         private readonly IJwtTokenGenerator _jwt;
 
-        public AuthService(IAccountRepository repo, IJwtTokenGenerator jwt)
-        {
-            _repo = repo;
-            _jwt = jwt;
-        }
-
         public AuthService(IAccountRepository repo, IUserRepository userRepo, IJwtTokenGenerator jwt)
         {
             _repo = repo;
@@ -31,7 +25,7 @@ namespace FinancialManagementApplication.Application.Services
             _jwt = jwt;
         }
 
-        public async Task<AuthResponse> RegisterAsync(RegisterRequest request, UserDTO userDTO)
+        public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
         {
             var existing = await _repo.GetByEmailAsync(request.Email);
             if (existing != null)
@@ -41,18 +35,21 @@ namespace FinancialManagementApplication.Application.Services
             {
                 AccountID = Guid.NewGuid(),
                 email = request.Email,
-                passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password)
+                passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                CreateAt = DateTime.Now,
+                UpdateAt = DateTime.Now,
             };
 
             var user = new User
             {
                 UserID = Guid.NewGuid(),
-                FirstName = userDTO.FirstName,
-                LastName = userDTO.LastName,
-                PhoneNumber = userDTO.PhoneNumber,
-                DateOfBirth = userDTO.DateOfBirth,
+                FirstName = "",
+                LastName = "",
+                PhoneNumber = "",
+                DateOfBirth = DateTime.UtcNow,
                 AccountID = account.AccountID
             };
+            account.UserID = user.UserID;
 
             await _repo.AddAsync(account);
             await _userRepo.CreateUserAsync(user);

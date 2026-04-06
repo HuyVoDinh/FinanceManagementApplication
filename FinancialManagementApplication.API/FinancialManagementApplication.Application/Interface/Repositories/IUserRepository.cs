@@ -10,7 +10,7 @@ namespace FinancialManagementApplication.Application.Interface.Repositories
     {
         Task<User?> GetUserByIdAsync(Guid id);
         Task<IEnumerable<User>> GetAllUsersAsync();
-        Task<User?> GetUserByAccountAsync(Account account);
+        Task<User?> GetUserByAccountIDAsync(Guid id);
         Task<User?> GetUserByEmailAsync(string email);
         Task<User> CreateUserAsync(User user);
         Task<User> UpdateUserAsync(User user);

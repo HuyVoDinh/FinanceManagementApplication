@@ -13,7 +13,6 @@ namespace FinancialManagementApplication.Domain.Entities
         public string PhoneNumber { get; set; }
         public DateTime DateOfBirth { get; set; }
         public Guid AccountID { get; set; }
-        public Account Account { get; set; }
         public DateTime CreateAt { get; set; }
         public DateTime UpdateAt { get; set; }
     }

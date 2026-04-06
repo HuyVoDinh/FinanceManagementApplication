@@ -37,9 +37,9 @@ namespace FinancialManagementApplication.Infrastructure.Repositories
             return await _context.Users.ToListAsync();
         }
 
-        public async Task<User?> GetUserByAccountAsync(Account account)
+        public async Task<User?> GetUserByAccountIDAsync(Guid id)
         {
-            return await _context.Users.FirstOrDefaultAsync(x => x.AccountID == account.AccountID);
+            return await _context.Users.FirstOrDefaultAsync(x => x.AccountID == id);
         }
 
         public async Task<User?> GetUserByEmailAsync(string email)

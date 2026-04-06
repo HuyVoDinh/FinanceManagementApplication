@@ -30,19 +30,19 @@ namespace FinancialManagementApplication.Infrastructure.Repositories
             return true;
         }
 
-        public Task<IEnumerable<Category>> GetAllCategoriesAsync()
+        public async Task<IEnumerable<Category>> GetAllCategoriesAsync()
         {
-            return _context.Categories.ToListAsync().ContinueWith(t => (IEnumerable<Category>)t.Result);
+            return await _context.Categories.ToListAsync().ContinueWith(t => (IEnumerable<Category>)t.Result);
         }
 
-        public Task<Category?> GetByAccountIDAsync(Guid accountId)
+        public async Task<Category?> GetByAccountIDAsync(Guid accountId)
         {
-            return _context.Categories.FirstOrDefaultAsync(x => x.AccountID == accountId);
+            return await _context.Categories.FirstOrDefaultAsync(x => x.AccountID == accountId);
         }
 
-        public Task<Category?> GetCategoryByIdAsync(Guid id)
+        public async Task<Category?> GetCategoryByIdAsync(Guid id)
         {
-            return _context.Categories.FirstOrDefaultAsync(x => x.CategoryID == id);
+            return await _context.Categories.FirstOrDefaultAsync(x => x.CategoryID == id);
         }
 
         public async Task<Category> UpdateCategoryAsync(Category category)

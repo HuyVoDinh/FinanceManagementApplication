@@ -29,8 +29,8 @@ namespace FinancialManagementApplication.API.Controller
 
         // GET api/user//account/{accountID}
         [HttpGet("account/{accountID:guid}")]
-        public async Task<ActionResult<UserDTO>> GetUserByAccount(Account account) {
-            var user = await _userRepository.GetUserByAccountAsync(account);
+        public async Task<ActionResult<UserDTO>> GetUserByAccountID(Guid accountID) {
+            var user = await _userRepository.GetUserByAccountIDAsync(accountID);
             if (user == null) {
                 return NotFound();
             }
