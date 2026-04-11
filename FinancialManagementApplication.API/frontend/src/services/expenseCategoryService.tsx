@@ -46,7 +46,7 @@ export async function updateCategory(categoryID: string, category: UpdateExpense
         body: JSON.stringify(category),
     });
 
-    if (!response)
+    if (!response.ok)
     {
         throw new Error("Failed to update category");
     }
