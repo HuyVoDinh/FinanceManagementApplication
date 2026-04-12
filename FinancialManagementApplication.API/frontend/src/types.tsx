@@ -22,7 +22,7 @@ export interface UpdateExpenseCategoryDTO{
 export interface ExpenseInformationDTO{
     ExpenseID: string, 
     Name: string, 
-    Amount: string, 
+    Amount: number, 
     CategoryID: string, 
     AllocatedPercentage: string, 
     AccountID: string, 
@@ -32,8 +32,34 @@ export interface ExpenseInformationDTO{
 
 export interface CreateExpenseInformationDTO{
     Name: string, 
-    Amount: string, 
+    Amount: number, 
     CategoryID: string, 
-    AllocatedPercentage: string, 
+    AllocatedPercentage: number, 
     AccountID: string
+}
+
+export interface UserDTO{
+        Id: string
+        FirstName: string
+        LastName : string
+        PhoneNumber : string
+        DateOfBirth : string
+        AccountID : string
+        CreateAt : string
+        UpdateAt : string
+}
+
+export interface UpdateUserDTO {
+    FirstName: string
+    LastName : string
+    PhoneNumber : string
+    DateOfBirth : string
+}
+
+export interface CreateUserDTO {
+    FirstName: string
+    LastName : string
+    PhoneNumber : string
+    DateOfBirth : string
+    AccountID : string
 }
