@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ExpenseCategoryDTO, CreateExpenseCategoryDTO, UpdateExpenseCategoryDTO } from './types';
+import type { ExpenseCategoryDTO, CreateExpenseCategoryDTO, UpdateExpenseCategoryDTO } from './types';
 import * as expenseCategoryService from "./services/expenseCategoryService"
 
 interface IncomeSetupProps{
@@ -133,7 +133,7 @@ export default function IncomeSetup({ accountID} : IncomeSetupProps){
     };
 
     const totalPercentage = expenseCategories.reduce(
-        (sum, cat) => sum + cat.allocationpercentage,
+        (sum, cat) => sum + cat.allocationpercentage, 0
     );
 
     return (
