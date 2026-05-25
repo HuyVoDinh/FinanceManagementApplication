@@ -1,5 +1,4 @@
 ﻿using FinancialManagementApplication.Application.DTOs.Auth;
-using FinancialManagementApplication.Application.DTOs.User;
 using FinancialManagementApplication.Application.Services;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;

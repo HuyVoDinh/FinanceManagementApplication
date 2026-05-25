@@ -30,7 +30,7 @@ namespace FinancialManagementApplication.API.Controller
         [HttpGet("user/{userId:guid}")]
         public async Task<ActionResult<IEnumerable<PortfolioDTO>>> GetAllPortfolios(Guid userId)
         {
-            var portfolios = await _portfolioRepository.GetAllByUserIdAsync(userId);
+            var portfolios = await _portfolioRepository.GetAllByAccountIdAsync(userId);
             return Ok(portfolios);
         }
 

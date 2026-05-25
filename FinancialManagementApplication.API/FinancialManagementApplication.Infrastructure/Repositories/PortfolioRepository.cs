@@ -1,5 +1,7 @@
 ﻿using FinancialManagementApplication.Application.Interface.Repositories;
 using FinancialManagementApplication.Domain.Entities;
+using FinancialManagementApplication.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -24,33 +26,33 @@ namespace FinancialManagementApplication.Infrastructure.Repositories
         {
             try
             {
-                await _context.Portfolios.Where(x => x.Id == id).ExecuteDeleteAsync();
+                await _context.Portfolio.Where(x => x.Id == id).ExecuteDeleteAsync();
             } catch (Exception e){
                 return false;
             }
             return true;
         }
 
-        public async Task<IEnumerable<Portfolio>> GetAllByUserIdAsync(Guid userId)
+        public async Task<IEnumerable<Portfolio>> GetAllByAccountIdAsync(Guid accountId)
         {
-            return await _context.Portfolios.Where(x => x.UserId == userId).ToListAsync();
+            return await _context.Portfolio.Where(x => x.AccountID == accountId).ToListAsync();
         }
 
         public async Task<Portfolio> GetAsync(Guid id)
         {
-            return await _context.Portfolios.Where(x => x.Id == id).FirstOrDefaultAsync();
-        }
-
-        public async Task<Portfolio> GetByUserIDAsync(Guid userId)
-        {
-            return await _context.Portfolios.Where(x => x.UserId == userId).FirstOrDefaultAsync ();
+            return await _context.Portfolio.Where(x => x.Id == id).FirstOrDefaultAsync();
         }
 
         public async Task<Portfolio> UpdateAsync(Portfolio portfolio)
         {
-            _context.Portfolios.Update(portfolio);
+            _context.Portfolio.Update(portfolio);
             await _context.SaveChangesAsync();
             return portfolio;
+        }
+
+        public async Task<Portfolio> GetByAccountIdAsync(Guid accountId)
+        {
+            return await _context.Portfolio.Where(x => x.AccountID == accountId).FirstOrDefaultAsync();
         }
     }
 }

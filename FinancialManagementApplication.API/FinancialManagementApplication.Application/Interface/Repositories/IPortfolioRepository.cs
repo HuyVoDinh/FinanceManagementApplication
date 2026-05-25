@@ -8,10 +8,10 @@ namespace FinancialManagementApplication.Application.Interface.Repositories
     public interface IPortfolioRepository
     {
         Task <Portfolio> GetAsync (Guid id);
-        Task <Portfolio> GetByUserIDAsync(Guid userId);
+        Task <Portfolio> GetByAccountIdAsync(Guid accountId);
         Task <Portfolio> CreateAsync (Portfolio portfolio);
-        Task DeleteAsync (Guid id);
+        Task <bool> DeleteAsync (Guid id);
         Task <Portfolio> UpdateAsync (Portfolio portfolio);
-        Task <IEnumerable<Portfolio>> GetAllByUserIdAsync (Guid userId);
+        Task <IEnumerable<Portfolio>> GetAllByAccountIdAsync (Guid accountId);
     }
 }

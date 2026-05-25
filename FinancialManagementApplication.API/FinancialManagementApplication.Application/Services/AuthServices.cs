@@ -8,20 +8,17 @@ using System.Text;
 using BCrypt.Net;
 using FinancialManagementApplication.Application.Interface.Repositories;
 using FinancialManagementApplication.Domain.Entities;
-using FinancialManagementApplication.Application.DTOs.User;
 
 namespace FinancialManagementApplication.Application.Services
 {
     public class AuthService
     {
         private readonly IAccountRepository _repo;
-        private readonly IUserRepository _userRepo;
         private readonly IJwtTokenGenerator _jwt;
 
-        public AuthService(IAccountRepository repo, IUserRepository userRepo, IJwtTokenGenerator jwt)
+        public AuthService(IAccountRepository repo, IJwtTokenGenerator jwt)
         {
             _repo = repo;
-            _userRepo = userRepo;
             _jwt = jwt;
         }
 
@@ -36,23 +33,14 @@ namespace FinancialManagementApplication.Application.Services
                 AccountID = Guid.NewGuid(),
                 email = request.Email,
                 passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                displayName = request.DisplayName,
                 CreateAt = DateTime.Now,
                 UpdateAt = DateTime.Now,
             };
 
-            var user = new User
-            {
-                UserID = Guid.NewGuid(),
-                FirstName = "",
-                LastName = "",
-                PhoneNumber = "",
-                DateOfBirth = DateTime.UtcNow,
-                Account = account
-            };
-            account.User = user;
+
 
             await _repo.AddAsync(account);
-            await _userRepo.CreateUserAsync(user);
 
             return new AuthResponse
             {
