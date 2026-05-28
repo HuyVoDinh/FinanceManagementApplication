@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ToastProvider, useToast } from "./components/ui/Toast";
+import { useToast } from "./components/ui/Toast";
 import { 
   authService, 
   assetService, 
@@ -80,10 +80,12 @@ export default function App() {
   const loadData = async () => {
     try {
       setError(null);
-      const assetList = await assetService.getAll();
+      if (!user) return;
+      
+      const assetList = await assetService.getAll(user.id);
       setAssets(assetList);
 
-      const { portfolio: port, allocations: allocs } = await portfolioService.getDetails();
+      const { portfolio: port, allocations: allocs } = await portfolioService.getDetails(user.id);
       setPortfolio(port);
       setAllocations(allocs);
       
@@ -132,6 +134,19 @@ export default function App() {
     }
   };
 
+  const handleDemo = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await authService.loginDemo();
+      setUser(res.user);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     authService.logout();
     setUser(null);
@@ -145,10 +160,12 @@ export default function App() {
     e.preventDefault();
     try {
       setError(null);
+      if (!user) return;
+      
       if (assetModal.mode === 'add') {
-        await assetService.create(assetModal.data);
+        await assetService.create(assetModal.data, user.id);
       } else if (assetModal.mode === 'edit' && assetModal.data.Id) {
-        await assetService.update(assetModal.data.Id, assetModal.data as any);
+        await assetService.update(assetModal.data.Id, assetModal.data as any, user.id);
       }
       setAssetModal({ ...assetModal, isOpen: false });
       await loadData();
@@ -212,14 +229,13 @@ export default function App() {
     setAllocations(updated);
     portfolioService.updateAllocations(updated);
   };
-
   const handleAllocateActual = async () => {
     try {
       await portfolioService.saveAllocations(allocations);
-      addToast('Phân bổ đã được lưu thành công!', 'success');
+      addToast({ title: 'Phân bổ đã được lưu thành công!', variant: 'success' });
       await loadData();
     } catch (err: any) {
-      addToast('Lỗi khi lưu phân bổ: ' + err.message, 'error');
+      addToast({ title: 'Lỗi khi lưu phân bổ', description: err.message, variant: 'error' });
     }
   };
 
@@ -269,12 +285,12 @@ export default function App() {
     );
   }
 
-  // Not Authenticated Layout
   if (!user) {
     return (
       <AuthPage 
         onLogin={handleLogin} 
         onRegister={handleRegister} 
+        onDemo={handleDemo}
         error={error} 
         isDemo={isDemo}
       />
@@ -471,7 +487,7 @@ export default function App() {
 // ======================== COMPONENTS ========================
 
 // 1. AUTH PAGE COMPONENT
-function AuthPage({ onLogin, onRegister, error, isDemo }: { onLogin: any; onRegister: any; error: string | null; isDemo: boolean }) {
+function AuthPage({ onLogin, onRegister, onDemo, error, isDemo }: { onLogin: any; onRegister: any; onDemo: any; error: string | null; isDemo: boolean }) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -522,7 +538,7 @@ function AuthPage({ onLogin, onRegister, error, isDemo }: { onLogin: any; onRegi
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Nhập tên hiển thị của bạn" 
-              />
+            />
             </div>
           )}
           <div className="form-group">
@@ -553,17 +569,31 @@ function AuthPage({ onLogin, onRegister, error, isDemo }: { onLogin: any; onRegi
           </button>
         </form>
 
-        {isLogin && isDemo && (
+        {isLogin && (
           <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-light)', textAlign: 'center' }}>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px' }}>Tài khoản Demo có sẵn (Mock Offline):</p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px' }}>Trải nghiệm ứng dụng không cần tài khoản:</p>
             <button 
               type="button" 
               className="btn btn-secondary" 
-              style={{ width: '100%', fontSize: '0.8rem', padding: '6px 12px' }}
-              onClick={handleUseDemoAccount}
+              style={{ width: '100%', fontSize: '0.85rem', padding: '10px 12px', background: 'rgba(99,102,241,0.1)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.2)', marginBottom: '12px' }}
+              onClick={onDemo}
             >
-              Sử dụng tài khoản Demo nhanh
+              📊 Trải nghiệm Chế độ Demo (Offline)
             </button>
+
+            {isDemo && (
+              <>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px' }}>Tài khoản Demo có sẵn (Mock Offline):</p>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  style={{ width: '100%', fontSize: '0.8rem', padding: '6px 12px' }}
+                  onClick={handleUseDemoAccount}
+                >
+                  Sử dụng tài khoản Demo nhanh
+                </button>
+              </>
+            )}
           </div>
         )}
 
@@ -984,6 +1014,7 @@ function AssetsPage({
 function PortfolioPage({
   portfolio,
   income,
+  onAllocateActual,
   targetReduction,
   calculatedExpenses,
   calculatedSavings,
@@ -1000,6 +1031,7 @@ function PortfolioPage({
 }: {
   portfolio: any;
   income: number;
+  onAllocateActual: () => void;
   targetReduction: number;
   calculatedExpenses: any[];
   calculatedSavings: any[];
@@ -1025,6 +1057,14 @@ function PortfolioPage({
           <h2 className="section-title">Phân Bổ Danh Mục & Cắt Giảm Ngân Sách</h2>
           <p className="section-desc">Phân bố thu nhập thành hai khối Sinh hoạt & Tích lũy, tích hợp bộ lập kế hoạch cắt giảm tự động</p>
         </div>
+        <button className="btn btn-primary" onClick={onAllocateActual} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          Lưu Phân Bổ Thực Tế
+        </button>
       </div>
 
       {/* Top Config Inputs Banner */}

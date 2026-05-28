@@ -1,5 +1,5 @@
 // src/components/ui/Toast.tsx
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
@@ -58,7 +58,7 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
     info: "bg-primary/10 border-primary text-primary",
   };
 
-  const variantIcon: Record<ToastVariant, JSX.Element> = {
+  const variantIcon: Record<ToastVariant, React.ReactNode> = {
     success: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M9 12l2 2 4-4"/></svg>,
     error: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 110 20 10 10 0 010-20zM8 8l8 8M16 8l-8 8"/></svg>,
     warning: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l9 20H3L12 2z"/></svg>,

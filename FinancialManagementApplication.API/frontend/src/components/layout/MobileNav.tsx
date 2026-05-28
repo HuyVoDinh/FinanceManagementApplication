@@ -1,3 +1,6 @@
+// src/components/layout/MobileNav.tsx
+// Commented out unused boilerplate code to prevent compilation errors since store and pages do not exist.
+/*
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Menu, X, Home, PieChart, Wallet, BarChart2, Settings, FileText, Calendar } from 'lucide-react';
@@ -53,3 +56,5 @@ export const MobileNav: React.FC = () => {
     </div>
   );
 };
+*/
+export {};

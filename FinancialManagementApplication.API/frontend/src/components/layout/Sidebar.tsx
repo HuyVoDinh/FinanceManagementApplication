@@ -1,3 +1,6 @@
+// src/components/layout/Sidebar.tsx
+// Commented out unused boilerplate code to prevent compilation errors since store and pages do not exist.
+/*
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LogOut, Home, PieChart, Wallet, BarChart2, Settings, FileText, Calendar } from 'lucide-react';
@@ -37,8 +40,8 @@ export const Sidebar: React.FC = () => {
             key={item.to}
             to={item.to}
             className={({ isActive }) =>
-              `flex items-center gap-3 p-2 rounded-lg transition-colors ${isActive ? 'bg-primary/20 text-primary' : 'text-gray-300 hover:bg-white/5'}
-            `
+              `flex items-center gap-3 p-2 rounded-lg transition-colors ${isActive ? 'bg-primary/20 text-primary' : 'text-gray-300 hover:bg-white/5'}`
+            }
           >
             {item.icon}
             <span className="font-medium">{item.label}</span>
@@ -52,3 +55,5 @@ export const Sidebar: React.FC = () => {
     </aside>
   );
 };
+*/
+export {};
