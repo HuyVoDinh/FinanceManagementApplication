@@ -1,4 +1,5 @@
-﻿using System;
+﻿using FinancialManagementApplication.Domain.Enums;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -9,5 +10,6 @@ namespace FinancialManagementApplication.Application.DTOs.Asset
         public string Name { get; set; }
         public decimal InitialValue { get; set; }
         public decimal CurrentValue { get; set; }
+        public AssetType Type { get; set; }
     }
 }

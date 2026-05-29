@@ -35,24 +35,33 @@ namespace FinancialManagementApplication.API.Controller
         }
 
         [HttpPost]
-        public async Task<ActionResult<PortfolioDTO>> CreatePortfolio(Portfolio portfolio)
+        public async Task<ActionResult<PortfolioDTO>> CreatePortfolio(CreatePortfolioDTO dto)
         {
+            var portfolio = new Portfolio
+            {
+                Id = Guid.NewGuid(),
+                AccountID = dto.AccountID,
+                Name = dto.Name,
+                Amount = dto.Amount,
+            };
             var result = await _portfolioRepository.CreateAsync(portfolio);
             return CreatedAtAction(nameof(GetPortfolio), new { id = result.Id }, result);
         }
 
-        [HttpPut]
-        public async Task<ActionResult<PortfolioDTO>> UpdatePortfolio(Guid id, Portfolio portfolio)
+        [HttpPut("{id}")]
+        public async Task<ActionResult> UpdatePortfolio(Guid id, UpdatePortfolioDTO dto)
         {
-            if (id != portfolio.Id)
-            {
-                return BadRequest();
-            }
+            var portfolio = await _portfolioRepository.GetAsync(id);
+            if (portfolio == null) return NotFound();
+
+            portfolio.Name = dto.Name;
+            portfolio.Amount = dto.Amount;
+
             await _portfolioRepository.UpdateAsync(portfolio);
             return NoContent();
         }
 
-        [HttpDelete]
+        [HttpDelete("{id}")]
         public async Task<ActionResult<bool>> DeletePortfolio(Guid id)
         {
             var portfolio = await _portfolioRepository.GetAsync(id);

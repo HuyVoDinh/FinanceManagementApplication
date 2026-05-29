@@ -1,4 +1,5 @@
 ﻿using FinanceManagementApplication.Domain.Entities;
+using FinancialManagementApplication.Domain.Enums;
 using System;
 using System.Collections.Generic;
 using System.Text;

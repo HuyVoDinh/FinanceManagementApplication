@@ -65,11 +65,11 @@ export default function App() {
   const [assetModal, setAssetModal] = useState<{
     isOpen: boolean;
     mode: 'add' | 'edit';
-    data: { Id?: string; Name: string; InitialValue: number; CurrentValue: number };
+    data: { Id?: string; Name: string; InitialValue: number; CurrentValue: number; Type: string };
   }>({
     isOpen: false,
     mode: 'add',
-    data: { Name: '', InitialValue: 0, CurrentValue: 0 }
+    data: { Name: '', InitialValue: 0, CurrentValue: 0, Type: 'Saving' }
   });
 
   // Check connection and fetch initial data on mount
@@ -364,11 +364,20 @@ export default function App() {
         return;
       }
 
-      await portfolioService.updateAmount(portfolio?.Id || 'p1', setupAmount, 'Kế Hoạch Phân Bổ Tổng Thể', user.id);
+      let currentPortfolio = portfolio;
+      if (!currentPortfolio) {
+        currentPortfolio = await portfolioService.create(
+          { Name: 'Kế Hoạch Phân Bổ Tổng Thể', Amount: setupAmount },
+          user.id
+        );
+        setPortfolio(currentPortfolio);
+      }
+
+      await portfolioService.updateAmount(currentPortfolio.Id, setupAmount, 'Kế Hoạch Phân Bổ Tổng Thể', user.id);
 
       const savedAllocs = setupAllocations.map(al => ({
         Id: al.Id,
-        PortfolioId: portfolio?.Id || 'p1',
+        PortfolioId: currentPortfolio.Id,
         FinancialCategory: al.FinancialCategory,
         Name: al.Name,
         CurrentAmount: al.CurrentAmount,
@@ -555,8 +564,8 @@ export default function App() {
             totalCurrent={totalCurrent}
             totalInterest={totalInterest}
             totalInterestRatio={totalInterestRatio}
-            onAdd={() => setAssetModal({ isOpen: true, mode: 'add', data: { Name: '', InitialValue: 0, CurrentValue: 0 } })}
-            onEdit={(a: any) => setAssetModal({ isOpen: true, mode: 'edit', data: { Id: a.Id, Name: a.Name, InitialValue: a.InitialValue, CurrentValue: a.CurrentValue } })}
+            onAdd={() => setAssetModal({ isOpen: true, mode: 'add', data: { Name: '', InitialValue: 0, CurrentValue: 0, Type: 'Saving' } })}
+            onEdit={(a: any) => setAssetModal({ isOpen: true, mode: 'edit', data: { Id: a.Id, Name: a.Name, InitialValue: a.InitialValue, CurrentValue: a.CurrentValue, Type: a.Type } })}
             onDelete={handleDeleteAsset}
           />
         )}
@@ -633,6 +642,19 @@ export default function App() {
                   onChange={(val) => setAssetModal({ ...assetModal, data: { ...assetModal.data, CurrentValue: val } })}
                   placeholder="Nhập giá trị tài sản hiện tại"
                 />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Phân loại</label>
+                <select
+                  className="form-control"
+                  value={assetModal.data.Type}
+                  onChange={(e) => setAssetModal({ ...assetModal, data: { ...assetModal.data, Type: e.target.value } })}
+                  style={{ padding: '8px 12px', height: '40px' }}
+                >
+                  <option value="Expense">Sinh hoạt</option>
+                  <option value="Saving">Tiết kiệm</option>
+                  <option value="Investment">Đầu tư</option>
+                </select>
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setAssetModal({ ...assetModal, isOpen: false })}>Hủy</button>
@@ -1044,6 +1066,61 @@ function AssetsPage({
   onEdit: any; 
   onDelete: any 
 }) {
+  const expenseAssets = assets.filter(a => a.Type === 'Expense');
+  const savingAssets = assets.filter(a => a.Type === 'Saving');
+  const investmentAssets = assets.filter(a => a.Type === 'Investment');
+
+  const renderAssetRows = (list: any[], startIdx: number) =>
+    list.map((asset, idx) => {
+      const interest = asset.CurrentValue - asset.InitialValue;
+      const ratio = asset.InitialValue > 0 ? (interest / asset.InitialValue) * 100 : 0;
+      return (
+        <tr key={asset.Id}>
+          <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{startIdx + idx + 1}</td>
+          <td style={{ fontWeight: 600 }}>{asset.Name}</td>
+          <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 500 }}>
+            {formatCurrency(asset.InitialValue)}
+          </td>
+          <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 500 }}>
+            {formatCurrency(asset.CurrentValue)}
+          </td>
+          <td style={{ 
+            textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 600,
+            color: interest > 0 ? 'var(--success)' : interest < 0 ? 'var(--danger)' : 'var(--text-muted)'
+          }}>
+            {interest > 0 ? '+' : ''}{formatCurrency(interest)}
+          </td>
+          <td style={{ 
+            textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 600,
+            color: interest > 0 ? 'var(--success)' : interest < 0 ? 'var(--danger)' : 'var(--text-muted)'
+          }}>
+            {asset.InitialValue > 0 ? (
+              <>{interest > 0 ? '+' : ''}{ratio.toFixed(2)}%</>
+            ) : (
+              '#DIV/0!'
+            )}
+          </td>
+          <td style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            26/05/2026
+          </td>
+          <td style={{ textAlign: 'center' }}>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+              <button className="btn-icon edit" onClick={() => onEdit(asset)} title="Sửa tài sản">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                </svg>
+              </button>
+              <button className="btn-icon delete" onClick={() => onDelete(asset.Id)} title="Xóa tài sản">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+              </button>
+            </div>
+          </td>
+        </tr>
+      );
+    });
+
   return (
     <div>
       <div className="tab-header">
@@ -1081,66 +1158,61 @@ function AssetsPage({
                 </td>
               </tr>
             ) : (
-              assets.map((asset, idx) => {
-                const interest = asset.CurrentValue - asset.InitialValue;
-                // Protection against #DIV/0!
-                const ratio = asset.InitialValue > 0 ? (interest / asset.InitialValue) * 100 : 0;
-                
-                return (
-                  <tr key={asset.Id}>
-                    <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                    <td style={{ fontWeight: 600 }}>{asset.Name}</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 500 }}>
-                      {formatCurrency(asset.InitialValue)}
-                    </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 500 }}>
-                      {formatCurrency(asset.CurrentValue)}
-                    </td>
-                    <td style={{ 
-                      textAlign: 'right', 
-                      fontFamily: 'var(--font-display)', 
-                      fontWeight: 600,
-                      color: interest > 0 ? 'var(--success)' : interest < 0 ? 'var(--danger)' : 'var(--text-muted)'
-                    }}>
-                      {interest > 0 ? '+' : ''}{formatCurrency(interest)}
-                    </td>
-                    <td style={{ 
-                      textAlign: 'right', 
-                      fontFamily: 'var(--font-display)', 
-                      fontWeight: 600,
-                      color: interest > 0 ? 'var(--success)' : interest < 0 ? 'var(--danger)' : 'var(--text-muted)'
-                    }}>
-                      {asset.InitialValue > 0 ? (
-                        <>
-                          {interest > 0 ? '+' : ''}
-                          {ratio.toFixed(2)}%
-                        </>
-                      ) : (
-                        '#DIV/0!'
-                      )}
-                    </td>
-                    <td style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                      26/05/2026
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                        <button className="btn-icon edit" onClick={() => onEdit(asset)} title="Sửa tài sản">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-                          </svg>
-                        </button>
-                        <button className="btn-icon delete" onClick={() => onDelete(asset.Id)} title="Xóa tài sản">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
+              <>
+                {/* SINH HOẠT SECTION */}
+                {expenseAssets.length > 0 && (
+                  <>
+                    <tr className="table-section-divider">
+                      <td colSpan={8} style={{ fontWeight: 700, padding: '10px 16px', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', color: '#f59e0b' }}>
+                        💳 Sinh hoạt
+                      </td>
+                    </tr>
+                    {renderAssetRows(expenseAssets, 0)}
+                  </>
+                )}
 
+                {/* TIẾT KIỆM SECTION */}
+                {savingAssets.length > 0 && (
+                  <>
+                    <tr className="table-section-divider">
+                      <td colSpan={8} style={{ fontWeight: 700, padding: '10px 16px', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--primary)' }}>
+                        🏦 Tiết kiệm
+                      </td>
+                    </tr>
+                    {renderAssetRows(savingAssets, expenseAssets.length)}
+                  </>
+                )}
+
+                {/* ĐẦU TƯ SECTION */}
+                {investmentAssets.length > 0 && (
+                  <>
+                    <tr className="table-section-divider">
+                      <td colSpan={8} style={{ fontWeight: 700, padding: '10px 16px', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', color: '#10b981' }}>
+                        📈 Đầu tư
+                      </td>
+                    </tr>
+                    {renderAssetRows(investmentAssets, expenseAssets.length + savingAssets.length)}
+                  </>
+                )}
+
+                {/* GRAND TOTAL */}
+                {assets.length > 0 && (
+                  <tr className="total-row" style={{ borderTop: '2px solid var(--border-light)' }}>
+                    <td colSpan={2} style={{ paddingLeft: '16px', fontWeight: 800 }}>Tổng tài sản</td>
+                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700 }}>{formatCurrency(totalInitial)}</td>
+                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700 }}>{formatCurrency(totalCurrent)}</td>
+                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700, color: totalInterest > 0 ? 'var(--success)' : totalInterest < 0 ? 'var(--danger)' : 'var(--text-muted)' }}>
+                      {totalInterest > 0 ? '+' : ''}{formatCurrency(totalInterest)}
+                    </td>
+                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 700, color: totalInterest > 0 ? 'var(--success)' : totalInterest < 0 ? 'var(--danger)' : 'var(--text-muted)' }}>
+                      {totalInterestRatio.toFixed(2)}%
+                    </td>
+                    <td></td>
+                    <td></td>
+                  </tr>
+                )}
+              </>
+            )}
           </tbody>
         </table>
       </div>

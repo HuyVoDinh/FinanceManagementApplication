@@ -43,19 +43,29 @@ const generateGuid = () => {
 };
 
 // Object mappers to bridge camelCase Backend with PascalCase Frontend
+const ASSET_TYPES = ['Expense', 'Saving', 'Investment'] as const;
+
+const mapType = (v: any): string => {
+  if (typeof v === 'number') return ASSET_TYPES[v] || 'Saving';
+  if (typeof v === 'string') return v;
+  return 'Saving';
+};
+
 const mapAssetToFrontend = (a: any) => ({
   Id: a.id || a.Id,
   Name: a.name || a.Name,
   InitialValue: a.initialValue !== undefined ? Number(a.initialValue) : Number(a.InitialValue || 0),
   CurrentValue: a.currentValue !== undefined ? Number(a.currentValue) : Number(a.CurrentValue || 0),
-  AccountID: a.accountId || a.accountID || a.AccountID
+  AccountID: a.accountId || a.accountID || a.AccountID,
+  Type: mapType(a.type !== undefined ? a.type : a.Type)
 });
 
 const mapPortfolioToFrontend = (p: any) => ({
   Id: p.id || p.Id,
   Name: p.name || p.Name,
   Amount: p.amount !== undefined ? Number(p.amount) : Number(p.Amount || 0),
-  AccountID: p.accountId || p.accountID || p.AccountID
+  AccountID: p.accountId || p.accountID || p.AccountID,
+  Type: mapType(p.type !== undefined ? p.type : p.Type)
 });
 
 const mapAllocationToFrontend = (al: any) => ({
@@ -69,14 +79,14 @@ const mapAllocationToFrontend = (al: any) => ({
 
 export const checkConnection = async (): Promise<boolean> => {
   try {
-    const res = await fetch(`${API_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'test', password: 'test' })
+    // Any HTTP response (even 404) means backend is running
+    const res = await fetch(`${API_URL}/health`, {
+      method: 'GET'
     }).catch(() => null);
     
-    if (res && res.status !== 404) {
-      isDemoMode = localStorage.getItem('fm_is_demo') === 'true';
+    if (res !== null) {
+      isDemoMode = false;
+      localStorage.removeItem('fm_is_demo');
     } else {
       isDemoMode = true;
     }
@@ -89,18 +99,18 @@ export const checkConnection = async (): Promise<boolean> => {
 
 // Seed Data for Demo Mode
 const DEFAULT_ASSETS = [
-  { Id: 'a1', Name: 'Saving', InitialValue: 23984562, CurrentValue: 764842 },
-  { Id: 'a2', Name: 'Emergency', InitialValue: 6497662, CurrentValue: 562566 },
-  { Id: 'a3', Name: 'Unemployment fund', InitialValue: 2583793, CurrentValue: 2584453 },
-  { Id: 'a4', Name: 'Health', InitialValue: 12238827, CurrentValue: 12138827 },
-  { Id: 'a5', Name: 'Goal fund', InitialValue: 674481, CurrentValue: 177617 },
-  { Id: 'a6', Name: 'Skill Investment', InitialValue: 674481, CurrentValue: 177617 },
-  { Id: 'a7', Name: 'Margin', InitialValue: 77140127, CurrentValue: 19725414 },
-  { Id: 'a8', Name: 'ETF', InitialValue: 23567444, CurrentValue: 27220403 },
-  { Id: 'a9', Name: 'Cash', InitialValue: 90403667, CurrentValue: 95172704 },
-  { Id: 'a10', Name: 'Investment certificate', InitialValue: 22664368, CurrentValue: 21493033 },
-  { Id: 'a11', Name: 'Gold (Cash)', InitialValue: 2520966, CurrentValue: 637392 },
-  { Id: 'a12', Name: 'Gold', InitialValue: 0, CurrentValue: 0 }
+  { Id: 'a1', Name: 'Saving', InitialValue: 23984562, CurrentValue: 764842, Type: 'Saving' },
+  { Id: 'a2', Name: 'Emergency', InitialValue: 6497662, CurrentValue: 562566, Type: 'Saving' },
+  { Id: 'a3', Name: 'Unemployment fund', InitialValue: 2583793, CurrentValue: 2584453, Type: 'Saving' },
+  { Id: 'a4', Name: 'Health', InitialValue: 12238827, CurrentValue: 12138827, Type: 'Saving' },
+  { Id: 'a5', Name: 'Goal fund', InitialValue: 674481, CurrentValue: 177617, Type: 'Saving' },
+  { Id: 'a6', Name: 'Skill Investment', InitialValue: 674481, CurrentValue: 177617, Type: 'Saving' },
+  { Id: 'a7', Name: 'Margin', InitialValue: 77140127, CurrentValue: 19725414, Type: 'Investment' },
+  { Id: 'a8', Name: 'ETF', InitialValue: 23567444, CurrentValue: 27220403, Type: 'Investment' },
+  { Id: 'a9', Name: 'Cash', InitialValue: 90403667, CurrentValue: 95172704, Type: 'Expense' },
+  { Id: 'a10', Name: 'Investment certificate', InitialValue: 22664368, CurrentValue: 21493033, Type: 'Investment' },
+  { Id: 'a11', Name: 'Gold (Cash)', InitialValue: 2520966, CurrentValue: 637392, Type: 'Investment' },
+  { Id: 'a12', Name: 'Gold', InitialValue: 0, CurrentValue: 0, Type: 'Investment' }
 ];
 
 const DEFAULT_PORTFOLIO = {
@@ -258,7 +268,7 @@ export const assetService = {
   getAll: async (userId: string = getLoggedUserId()): Promise<any[]> => {
     await checkConnection();
     if (isDemoMode) {
-      return getStorage('fm_assets', DEFAULT_ASSETS);
+      return getStorage('fm_assets', DEFAULT_ASSETS).map(mapAssetToFrontend);
     }
     try {
       const res = await fetch(`${API_URL}/assets/user/${userId}`, {
@@ -266,9 +276,7 @@ export const assetService = {
       });
       if (res.ok) {
         const data = await res.json();
-        const mapped = data.map(mapAssetToFrontend);
-        setStorage('fm_assets', mapped);
-        return mapped;
+        return data.map(mapAssetToFrontend);
       }
     } catch (e) {
       console.error('Error fetching assets:', e);
@@ -277,7 +285,7 @@ export const assetService = {
     return [];
   },
 
-  create: async (asset: { Name: string; InitialValue: number; CurrentValue: number }, userId: string = getLoggedUserId()): Promise<any> => {
+  create: async (asset: { Name: string; InitialValue: number; CurrentValue: number; Type: string }, userId: string = getLoggedUserId()): Promise<any> => {
     await checkConnection();
     const mockId = 'a-' + Math.random().toString(36).substr(2, 9);
     const newAssetFrontend = {
@@ -285,6 +293,7 @@ export const assetService = {
       Name: asset.Name,
       InitialValue: asset.InitialValue,
       CurrentValue: asset.CurrentValue,
+      Type: asset.Type || 'Saving',
       AccountID: userId
     };
     
@@ -296,16 +305,15 @@ export const assetService = {
     }
 
     try {
-      const dbGuid = generateGuid();
       const res = await fetch(`${API_URL}/assets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({
-          id: dbGuid,
-          accountId: userId,
+          accountID: userId,
           name: asset.Name,
           initialValue: asset.InitialValue,
-          currentValue: asset.CurrentValue
+          currentValue: asset.CurrentValue,
+          type: asset.Type
         })
       });
       if (res.ok) {
@@ -316,13 +324,10 @@ export const assetService = {
       console.error('Error creating asset:', e);
     }
     
-    const list = getStorage('fm_assets', DEFAULT_ASSETS);
-    list.push(newAssetFrontend);
-    setStorage('fm_assets', list);
-    return newAssetFrontend;
+    throw new Error('Không thể tạo tài sản trên máy chủ.');
   },
 
-  update: async (id: string, asset: { Id: string; Name: string; InitialValue: number; CurrentValue: number }, userId: string = getLoggedUserId()): Promise<void> => {
+  update: async (id: string, asset: { Id: string; Name: string; InitialValue: number; CurrentValue: number; Type: string }, userId: string = getLoggedUserId()): Promise<void> => {
     await checkConnection();
     if (isDemoMode) {
       const list = getStorage('fm_assets', DEFAULT_ASSETS);
@@ -339,11 +344,10 @@ export const assetService = {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({
-          id: asset.Id,
-          accountId: userId,
           name: asset.Name,
           initialValue: asset.InitialValue,
-          currentValue: asset.CurrentValue
+          currentValue: asset.CurrentValue,
+          type: asset.Type
         })
       });
       if (res.ok) return;
@@ -351,12 +355,7 @@ export const assetService = {
       console.error('Error updating asset:', e);
     }
     
-    const list = getStorage('fm_assets', DEFAULT_ASSETS);
-    const idx = list.findIndex(a => a.Id === id);
-    if (idx !== -1) {
-      list[idx] = { ...list[idx], ...asset };
-      setStorage('fm_assets', list);
-    }
+    throw new Error('Không thể cập nhật tài sản trên máy chủ.');
   },
 
   delete: async (id: string): Promise<void> => {
@@ -377,10 +376,6 @@ export const assetService = {
     } catch (e) {
       console.error('Error deleting asset:', e);
     }
-
-    const list = getStorage('fm_assets', DEFAULT_ASSETS);
-    const filtered = list.filter(a => a.Id !== id);
-    setStorage('fm_assets', filtered);
   }
 };
 
@@ -402,10 +397,9 @@ export const portfolioService = {
         let mainP = portfolios[0];
         
         if (!mainP) {
-          mainP = await portfolioService.create({ Name: 'Kế Hoạch Phân Bổ Tổng Thể', Amount: 19139550 }, userId);
-        } else {
-          mainP = mapPortfolioToFrontend(mainP);
+          return { portfolio: null, allocations: [] };
         }
+        mainP = mapPortfolioToFrontend(mainP);
         
         const resA = await fetch(`${API_URL}/portfolioAllocation/portfolio/${mainP.Id}`, {
           headers: { ...getAuthHeader() }
@@ -413,42 +407,10 @@ export const portfolioService = {
         
         if (resA.ok) {
           let allocations = await resA.json();
-          if (allocations.length === 0) {
-            // Seed default allocations to the backend for this portfolio
-            const seeded = [];
-            for (const item of DEFAULT_ALLOCATIONS) {
-              const generatedGuid = generateGuid();
-              const newAl = {
-                id: generatedGuid,
-                portfolioId: mainP.Id,
-                financialCategory: item.FinancialCategory,
-                name: item.Name,
-                currentAmount: item.CurrentAmount,
-                targetPercentage: item.TargetPercentage,
-                updateAt: new Date().toISOString()
-              };
-              await fetch(`${API_URL}/portfolioAllocation`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-                body: JSON.stringify(newAl)
-              }).catch(() => null);
-              
-              seeded.push({
-                Id: generatedGuid,
-                PortfolioId: mainP.Id,
-                FinancialCategory: item.FinancialCategory,
-                Name: item.Name,
-                CurrentAmount: item.CurrentAmount,
-                TargetPercentage: item.TargetPercentage
-              });
-            }
-            allocations = seeded;
-          } else {
+          if (allocations.length > 0) {
             allocations = allocations.map(mapAllocationToFrontend);
           }
           
-          setStorage('fm_portfolios', [mainP]);
-          setStorage('fm_allocations', allocations);
           return { portfolio: mainP, allocations };
         }
       }
@@ -475,15 +437,14 @@ export const portfolioService = {
     }
 
     try {
-      const dbGuid = generateGuid();
       const res = await fetch(`${API_URL}/portfolio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({
-          id: dbGuid,
-          accountId: userId,
+          accountID: userId,
           name: portfolio.Name,
-          amount: portfolio.Amount
+          amount: portfolio.Amount,
+          type: 'Saving'
         })
       });
       if (res.ok) {
@@ -494,8 +455,7 @@ export const portfolioService = {
       console.error('Error creating portfolio:', e);
     }
 
-    setStorage('fm_portfolios', [newPFrontend]);
-    return newPFrontend;
+    throw new Error('Không thể tạo danh mục trên máy chủ.');
   },
 
   updateAmount: async (id: string, amount: number, name: string = 'Kế Hoạch Phân Bổ Tổng Thể', userId: string = getLoggedUserId()): Promise<void> => {
@@ -508,23 +468,20 @@ export const portfolioService = {
     }
     
     try {
-      await fetch(`${API_URL}/portfolio`, {
+      const res = await fetch(`${API_URL}/portfolio/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({
-          id,
-          accountId: userId,
           name,
-          amount
+          amount,
+          type: 'Saving'
         })
       });
+      if (!res.ok) throw new Error('Update failed');
     } catch (e) {
       console.error('Error updating portfolio amount:', e);
+      throw new Error('Không thể cập nhật danh mục trên máy chủ.');
     }
-    
-    const p = getStorage('fm_portfolios', [DEFAULT_PORTFOLIO])[0];
-    p.Amount = amount;
-    setStorage('fm_portfolios', [p]);
   },
 
   updateAllocations: async (allocations: any[]): Promise<void> => {
@@ -562,27 +519,39 @@ export const portfolioService = {
             al.Id = generatedGuid;
           }
         } else {
-          await fetch(`${API_URL}/portfolioAllocation/${al.Id}`, {
+          const body = {
+            financialCategory: al.FinancialCategory,
+            name: al.Name,
+            currentAmount: al.CurrentAmount,
+            targetPercentage: al.TargetPercentage,
+            updateAt: new Date().toISOString()
+          };
+
+          const res = await fetch(`${API_URL}/portfolioAllocation/${al.Id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-            body: JSON.stringify({
+            body: JSON.stringify(body)
+          });
+
+          if (!res.ok && res.status === 404) {
+            // Record doesn't exist in DB (e.g. seeding with fake ID), create it
+            const newAl = {
               id: al.Id,
               portfolioId: al.PortfolioId,
-              financialCategory: al.FinancialCategory,
-              name: al.Name,
-              currentAmount: al.CurrentAmount,
-              targetPercentage: al.TargetPercentage,
-              updateAt: new Date().toISOString()
-            })
-          });
+              ...body
+            };
+            await fetch(`${API_URL}/portfolioAllocation`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+              body: JSON.stringify(newAl)
+            });
+          }
         }
       }
     } catch (e) {
       console.error('Lỗi lưu phân bổ:', e);
       throw new Error('Không thể đồng bộ phân bổ danh mục lên máy chủ backend.');
     }
-    
-    setStorage('fm_allocations', allocations);
   },
 
   getBudgetCutConfig: () => {

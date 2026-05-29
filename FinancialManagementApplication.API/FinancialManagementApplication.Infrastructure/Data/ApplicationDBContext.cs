@@ -1,7 +1,9 @@
 ﻿using FinanceManagementApplication.Domain.Entities;
 using FinancialManagementApplication.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Collections.Generic;
+using FinancialManagementApplication.Domain.Enums;
 
 namespace FinancialManagementApplication.Infrastructure.Data;
 
@@ -20,6 +22,17 @@ public class ApplicationDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        var assetTypeConverter = new ValueConverter<AssetType, string>(
+            v => v.ToString(),
+            v => (AssetType)Enum.Parse(typeof(AssetType), v)
+        );
+
+        modelBuilder.Entity<Assets>(entity =>
+        {
+            entity.Property(e => e.Type).HasConversion(assetTypeConverter);
+        });
+
         // Configure relationships
         modelBuilder.Entity<Account>()
             .HasMany(a => a.Assets)

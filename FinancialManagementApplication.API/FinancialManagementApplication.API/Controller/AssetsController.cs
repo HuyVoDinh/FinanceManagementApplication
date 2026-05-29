@@ -35,19 +35,31 @@ namespace FinancialManagementApplication.API.Controller
         }
 
         [HttpPost]
-        public async Task<ActionResult<AssetDTO>> CreateAsset(Assets asset)
+        public async Task<ActionResult<AssetDTO>> CreateAsset(CreateAssetDTO dto)
         {
+            var asset = new Assets
+            {
+                Id = Guid.NewGuid(),
+                AccountID = dto.AccountID,
+                Name = dto.Name,
+                InitialValue = dto.InitialValue,
+                CurrentValue = dto.CurrentValue,
+                Type = dto.Type
+            };
             var result = await _assetsRepository.CreateAsync(asset);
             return CreatedAtAction(nameof(GetAsset), new { id = result.Id }, result);
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateAsset(Guid id, Assets asset)
+        public async Task<IActionResult> UpdateAsset(Guid id, UpdateAssetDTO dto)
         {
-            if (id != asset.Id)
-            {
-                return BadRequest();
-            }
+            var asset = await _assetsRepository.GetAsync(id);
+            if (asset == null) return NotFound();
+
+            asset.Name = dto.Name;
+            asset.InitialValue = dto.InitialValue;
+            asset.CurrentValue = dto.CurrentValue;
+            asset.Type = dto.Type;
 
             await _assetsRepository.UpdateAsync(asset);
             return NoContent();
