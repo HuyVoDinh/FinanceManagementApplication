@@ -1,4 +1,4 @@
-﻿using FinanceManagementApplication.Domain.Entities;
+using FinanceManagementApplication.Domain.Entities;
 using System;
 using System.Collections.Generic;
 using System.Security.Claims;
@@ -26,7 +26,8 @@ namespace FinancialManagementApplication.Infrastructure.Security
             var claims = new[]
             {
             new Claim(ClaimTypes.NameIdentifier, account.AccountID.ToString()),
-            new Claim(ClaimTypes.Email, account.email)
+            new Claim(ClaimTypes.Email, account.email),
+            new Claim(ClaimTypes.Name, account.displayName ?? string.Empty)
         };
 
             var key = new SymmetricSecurityKey(

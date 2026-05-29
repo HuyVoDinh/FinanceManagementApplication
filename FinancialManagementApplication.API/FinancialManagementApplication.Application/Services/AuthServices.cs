@@ -34,8 +34,8 @@ namespace FinancialManagementApplication.Application.Services
                 email = request.Email,
                 passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 displayName = request.DisplayName,
-                CreateAt = DateTime.Now,
-                UpdateAt = DateTime.Now,
+                CreateAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow,
             };
 
 

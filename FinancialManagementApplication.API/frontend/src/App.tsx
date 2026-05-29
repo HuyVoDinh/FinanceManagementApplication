@@ -10,8 +10,10 @@ import {
 
 // Format currency in USD (or VND with $ symbol as in the spreadsheets)
 const formatCurrency = (value: number) => {
-  const rounded = Math.round(value);
-  const formatted = new Intl.NumberFormat('en-US').format(Math.abs(rounded));
+  const formatted = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Math.abs(value));
   return `${value < 0 ? '-' : ''}$${formatted}`;
 };
 
@@ -35,6 +37,11 @@ export default function App() {
   const [income, setIncome] = useState<number>(19139550);
   const [targetReduction, setTargetReduction] = useState<number>(500000);
   const [exclusions, setExclusions] = useState<string[]>(['al12']); // Default: "Health" al12 is excluded
+
+  // Setup mode states
+  const [showSetup, setShowSetup] = useState<boolean>(false);
+  const [setupAmount, setSetupAmount] = useState<number>(portfolio?.Amount || 19139550);
+  const [setupAllocations, setSetupAllocations] = useState<any[]>([]);
 
   // Loading & Error States
   const [loading, setLoading] = useState<boolean>(true);
@@ -239,6 +246,125 @@ export default function App() {
     }
   };
 
+  // Setup mode handlers
+  const handleStartSetup = () => {
+    setSetupAmount(portfolio?.Amount || 0);
+    setSetupAllocations(allocations.map(al => ({
+      ...al,
+      setupAmount: al.CurrentAmount
+    })));
+    setShowSetup(true);
+  };
+
+  const handleCancelSetup = () => {
+    setShowSetup(false);
+  };
+
+  const handleSetupAmountChange = (val: number) => {
+    const otherTotal = setupAllocations.reduce((sum, al) => sum + (al.setupAmount || 0), 0);
+    if (otherTotal > val) return;
+    setSetupAmount(val);
+    const updated = setupAllocations.map(al => {
+      const newPercent = val > 0 ? (al.setupAmount / val) * 100 : 0;
+      return { ...al, TargetPercentage: newPercent, CurrentAmount: al.setupAmount };
+    });
+    setSetupAllocations(updated);
+  };
+
+  const handleSetupAllocationAmountChange = (id: string, newAmount: number) => {
+    const otherTotal = setupAllocations
+      .filter(al => al.Id !== id)
+      .reduce((sum, al) => sum + (al.setupAmount || 0), 0);
+    const otherPercent = setupAllocations
+      .filter(al => al.Id !== id)
+      .reduce((sum, al) => sum + (setupAmount > 0 ? ((al.setupAmount || 0) / setupAmount) * 100 : 0), 0);
+    if (otherTotal + newAmount > setupAmount) return;
+    if (otherPercent + (setupAmount > 0 ? (newAmount / setupAmount) * 100 : 0) > 100) return;
+    const updated = setupAllocations.map(al => {
+      if (al.Id === id) {
+        const newPercent = setupAmount > 0 ? (newAmount / setupAmount) * 100 : 0;
+        return { ...al, setupAmount: newAmount, CurrentAmount: newAmount, TargetPercentage: newPercent };
+      }
+      return al;
+    });
+    setSetupAllocations(updated);
+  };
+
+  const handleSetupAddAllocation = () => {
+    const totalAllocated = setupAllocations.reduce((sum, al) => sum + (al.setupAmount || 0), 0);
+    const totalPercent = setupAllocations.reduce((sum, al) => sum + al.TargetPercentage, 0);
+    if (totalAllocated >= setupAmount || totalPercent >= 100) return;
+    const newId = 'al-' + Math.random().toString(36).substr(2, 9);
+    const newAl = {
+      Id: newId,
+      PortfolioId: portfolio?.Id || 'p1',
+      FinancialCategory: 'Expense',
+      Name: '',
+      CurrentAmount: 0,
+      TargetPercentage: 0,
+      setupAmount: 0
+    };
+    setSetupAllocations([...setupAllocations, newAl]);
+  };
+
+  const handleSetupEditAllocation = (id: string, field: string, value: any) => {
+    const updated = setupAllocations.map(al => {
+      if (al.Id === id) {
+        const updatedAl = { ...al, [field]: value };
+        if (field === 'Name' || field === 'FinancialCategory') {
+          return updatedAl;
+        }
+        return updatedAl;
+      }
+      return al;
+    });
+    setSetupAllocations(updated);
+  };
+
+  const handleSetupDeleteAllocation = (id: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa danh mục này?')) return;
+    const filtered = setupAllocations.filter(al => al.Id !== id);
+    const updated = filtered.map(al => {
+      const newPercent = setupAmount > 0 ? (al.setupAmount / setupAmount) * 100 : 0;
+      return { ...al, TargetPercentage: newPercent, CurrentAmount: al.setupAmount };
+    });
+    setSetupAllocations(updated);
+  };
+
+  const handleSaveSetup = async () => {
+    try {
+      setError(null);
+      if (!user) return;
+      if (setupAllocations.length === 0) {
+        setError('Vui lòng thêm ít nhất một danh mục.');
+        return;
+      }
+      if (setupAllocations.some(al => !al.Name.trim())) {
+        setError('Vui lòng nhập tên cho tất cả danh mục.');
+        return;
+      }
+
+      await portfolioService.updateAmount(portfolio?.Id || 'p1', setupAmount, 'Kế Hoạch Phân Bổ Tổng Thể', user.id);
+
+      const savedAllocs = setupAllocations.map(al => ({
+        Id: al.Id,
+        PortfolioId: portfolio?.Id || 'p1',
+        FinancialCategory: al.FinancialCategory,
+        Name: al.Name,
+        CurrentAmount: al.CurrentAmount,
+        TargetPercentage: al.TargetPercentage
+      }));
+
+      await portfolioService.saveAllocations(savedAllocs);
+      setAllocations(savedAllocs);
+      setPortfolio(prev => prev ? { ...prev, Amount: setupAmount } : prev);
+      setShowSetup(false);
+      addToast({ title: 'Thiết lập danh mục thành công!', variant: 'success' });
+    } catch (err: any) {
+      setError(err.message || 'Lỗi khi lưu thiết lập.');
+    }
+  };
+
   // Dynamic values calculated from allocations
   const totalAllocatedPercentage = allocations.reduce((sum, al) => sum + al.TargetPercentage, 0);
   const totalAllocatedCash = allocations.reduce((sum, al) => sum + al.CurrentAmount, 0);
@@ -424,6 +550,17 @@ export default function App() {
             onToggleExclusion={handleToggleExclusion}
             onUpdateAllocationPercent={handleUpdateAllocationPercent}
             onUpdateAllocationCash={handleUpdateAllocationCash}
+            showSetup={showSetup}
+            setupAmount={setupAmount}
+            setupAllocations={setupAllocations}
+            onStartSetup={handleStartSetup}
+            onCancelSetup={handleCancelSetup}
+            onSaveSetup={handleSaveSetup}
+            onSetupAmountChange={handleSetupAmountChange}
+            onSetupAddAllocation={handleSetupAddAllocation}
+            onSetupEditAllocation={handleSetupEditAllocation}
+            onSetupDeleteAllocation={handleSetupDeleteAllocation}
+            onSetupAllocationAmountChange={handleSetupAllocationAmountChange}
           />
         )}
       </main>
@@ -452,6 +589,7 @@ export default function App() {
                 <label className="form-label">Vốn ban đầu (Funds)</label>
                 <input 
                   type="number" 
+                  step="0.01"
                   className="form-control" 
                   min="0"
                   required
@@ -464,6 +602,7 @@ export default function App() {
                 <label className="form-label">Giá trị hiện tại (Current)</label>
                 <input 
                   type="number" 
+                  step="0.01"
                   className="form-control" 
                   min="0"
                   required
@@ -631,22 +770,28 @@ function DashboardPage({
   // Let's create a beautiful curve from total current assets
   const chartHeight = 220;
   const chartWidth = 600;
-  const pointsCount = 6;
-  const baseValue = totalCurrent || 180654868; // fallback to sheet total
+  const pointsCount = 12;
+  const baseValue = totalCurrent ?? 0;
   
-  // Create 6 historical simulation points leading up to current Net Worth
+  // Create 12 historical simulation points leading up to current Net Worth
   const historyData = [
-    baseValue * 0.72,
-    baseValue * 0.78,
-    baseValue * 0.85,
-    baseValue * 0.82,
-    baseValue * 0.94,
+    baseValue * 0.58,
+    baseValue * 0.63,
+    baseValue * 0.67,
+    baseValue * 0.71,
+    baseValue * 0.75,
+    baseValue * 0.79,
+    baseValue * 0.83,
+    baseValue * 0.80,
+    baseValue * 0.87,
+    baseValue * 0.91,
+    baseValue * 0.96,
     baseValue
   ];
 
   const minVal = Math.min(...historyData) * 0.95;
   const maxVal = Math.max(...historyData) * 1.05;
-  const valRange = maxVal - minVal;
+  const valRange = (maxVal - minVal) || 1;
 
   const points = historyData.map((val, idx) => {
     const x = (idx / (pointsCount - 1)) * chartWidth;
@@ -736,7 +881,7 @@ function DashboardPage({
               </svg>
             </span>
           </div>
-          <div className="metric-value">{formatCurrency(portfolio?.Amount || 19139550)}</div>
+          <div className="metric-value">{formatCurrency(portfolio?.Amount ?? 0)}</div>
           <div className="metric-change" style={{ color: 'var(--text-secondary)' }}>
             Ngân sách khả dụng phân bổ
           </div>
@@ -748,7 +893,7 @@ function DashboardPage({
         {/* SVG Area Chart */}
         <div className="card">
           <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>Xu Hướng Tài Sản Tổng Thể</h3>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>Mô phỏng 6 chu kỳ tăng trưởng tích lũy ròng gần nhất</p>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>Mô phỏng 12 tháng tăng trưởng tích lũy ròng gần nhất</p>
           
           <div className="chart-container">
             <svg className="chart-svg" viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
@@ -790,7 +935,7 @@ function DashboardPage({
                     className="chart-label" 
                     textAnchor="middle"
                   >
-                    Kỳ {idx + 1}
+                    T{idx + 1}
                   </text>
                 </g>
               ))}
@@ -1027,7 +1172,18 @@ function PortfolioPage({
   onUpdateTargetReduction,
   onToggleExclusion,
   onUpdateAllocationPercent,
-  onUpdateAllocationCash
+  onUpdateAllocationCash,
+  showSetup,
+  setupAmount,
+  setupAllocations,
+  onStartSetup,
+  onCancelSetup,
+  onSaveSetup,
+  onSetupAmountChange,
+  onSetupAddAllocation,
+  onSetupEditAllocation,
+  onSetupDeleteAllocation,
+  onSetupAllocationAmountChange
 }: {
   portfolio: any;
   income: number;
@@ -1045,10 +1201,171 @@ function PortfolioPage({
   onToggleExclusion: any;
   onUpdateAllocationPercent: any;
   onUpdateAllocationCash: any;
+  showSetup: boolean;
+  setupAmount: number;
+  setupAllocations: any[];
+  onStartSetup: () => void;
+  onCancelSetup: () => void;
+  onSaveSetup: () => void;
+  onSetupAmountChange: (val: number) => void;
+  onSetupAddAllocation: () => void;
+  onSetupEditAllocation: (id: string, field: string, value: any) => void;
+  onSetupDeleteAllocation: (id: string) => void;
+  onSetupAllocationAmountChange: (id: string, amount: number) => void;
 }) {
 
   // Visual warnings for total percentages
   const isPercentageBalanced = Math.abs(totalAllocatedPercentage - 100) < 0.01;
+
+  // Setup mode totals
+  const setupTotalAmount = setupAllocations.reduce((sum, al) => sum + (al.setupAmount || 0), 0);
+  const setupTotalPercent = setupAllocations.reduce((sum, al) => sum + al.TargetPercentage, 0);
+
+  if (showSetup) {
+    return (
+      <div>
+        <div className="tab-header">
+          <div>
+            <h2 className="section-title">Thiết Lập Danh Mục</h2>
+            <p className="section-desc">Thêm, sửa, xóa danh mục và nhập số tiền phân bổ. Tỉ lệ phần trăm sẽ tự động tính toán.</p>
+          </div>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button className="btn btn-secondary" onClick={onCancelSetup}>
+              Hủy
+            </button>
+            <button className="btn btn-primary" onClick={onSaveSetup} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/>
+                <polyline points="7 3 7 8 15 8"/>
+              </svg>
+              Lưu Thiết Lập
+            </button>
+          </div>
+        </div>
+
+        {/* Base Amount Input */}
+        <div className="budget-cut-header">
+          <div className="budget-input-item">
+            <label>Phân bổ gốc (Base Amount)</label>
+            <input 
+              type="number" 
+              step="0.01"
+              value={setupAmount} 
+              onChange={(e) => onSetupAmountChange(parseFloat(e.target.value) || 0)} 
+            />
+          </div>
+          <div className="budget-input-item">
+            <label>Tổng đã phân bổ</label>
+            <div style={{ padding: '8px 12px', background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: '6px', fontWeight: 700, fontFamily: 'var(--font-display)', fontSize: '1rem', color: Math.abs(setupTotalPercent - 100) < 0.01 ? 'var(--success)' : 'var(--warning)' }}>
+              {setupTotalPercent.toFixed(5)}%
+            </div>
+          </div>
+          <div style={{ flex: 1, minWidth: '220px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            <div>• Nhập số tiền cho từng danh mục, hệ thống tự động tính tỉ lệ phần trăm.</div>
+            <div>• Tổng tỉ trọng nên đạt <strong>100%</strong> để cân bằng.</div>
+          </div>
+        </div>
+
+        {/* Setup Table */}
+        <div className="table-container">
+          <table className="custom-table">
+            <thead>
+              <tr>
+                <th style={{ width: '80px' }}>Khối</th>
+                <th>Tên danh mục</th>
+                <th style={{ textAlign: 'right', width: '160px' }}>Số tiền (Cash)</th>
+                <th style={{ textAlign: 'right', width: '140px' }}>Tỉ trọng (%)</th>
+                <th style={{ textAlign: 'center', width: '100px' }}>Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              {setupAllocations.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '30px' }}>
+                    Chưa có danh mục nào. Bấm "Thêm danh mục" để bắt đầu.
+                  </td>
+                </tr>
+              ) : (
+                setupAllocations.map((al, idx) => (
+                  <tr key={al.Id}>
+                    <td>
+                      <select
+                        className="form-control"
+                        style={{ padding: '4px 8px', height: '32px', fontSize: '0.85rem', width: '100%' }}
+                        value={al.FinancialCategory}
+                        onChange={(e) => onSetupEditAllocation(al.Id, 'FinancialCategory', e.target.value)}
+                      >
+                        <option value="Expense">Sinh hoạt</option>
+                        <option value="Saving">Saving</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input 
+                        type="text" 
+                        className="form-control"
+                        style={{ padding: '4px 8px', height: '32px', fontSize: '0.85rem', width: '100%' }}
+                        value={al.Name}
+                        onChange={(e) => onSetupEditAllocation(al.Id, 'Name', e.target.value)}
+                        placeholder="Tên danh mục..."
+                      />
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        className="form-control"
+                        style={{ textAlign: 'right', padding: '4px 8px', width: '140px', display: 'inline-block', height: '32px', fontSize: '0.85rem', fontFamily: 'var(--font-display)' }}
+                        value={al.setupAmount || 0}
+                        onChange={(e) => onSetupAllocationAmountChange(al.Id, parseFloat(e.target.value) || 0)}
+                      />
+                    </td>
+                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+                      {al.TargetPercentage.toFixed(5)}%
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button 
+                        className="btn-icon delete" 
+                        onClick={() => onSetupDeleteAllocation(al.Id)}
+                        title="Xóa danh mục"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+              {/* Setup Total Row */}
+              {setupAllocations.length > 0 && (
+                <tr className="total-row">
+                  <td></td>
+                  <td style={{ paddingLeft: '16px' }}>Tổng cộng</td>
+                  <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)' }}>
+                    {formatCurrency(setupTotalAmount)}
+                  </td>
+                  <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', color: Math.abs(setupTotalPercent - 100) < 0.01 ? 'var(--success)' : '#f59e0b' }}>
+                    {setupTotalPercent.toFixed(5)}%
+                  </td>
+                  <td></td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{ marginTop: '16px' }}>
+          <button className="btn btn-secondary" onClick={onSetupAddAllocation} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Thêm danh mục
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -1057,14 +1374,22 @@ function PortfolioPage({
           <h2 className="section-title">Phân Bổ Danh Mục & Cắt Giảm Ngân Sách</h2>
           <p className="section-desc">Phân bố thu nhập thành hai khối Sinh hoạt & Tích lũy, tích hợp bộ lập kế hoạch cắt giảm tự động</p>
         </div>
-        <button className="btn btn-primary" onClick={onAllocateActual} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-            <polyline points="17 21 17 13 7 13 7 21"/>
-            <polyline points="7 3 7 8 15 8"/>
-          </svg>
-          Lưu Phân Bổ Thực Tế
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button className="btn btn-secondary" onClick={onStartSetup} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+            Thiết lập mới
+          </button>
+          <button className="btn btn-primary" onClick={onAllocateActual} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            Lưu Phân Bổ Thực Tế
+          </button>
+        </div>
       </div>
 
       {/* Top Config Inputs Banner */}
@@ -1073,20 +1398,16 @@ function PortfolioPage({
           <label>Thu nhập (Income)</label>
           <input 
             type="number" 
+            step="0.01"
             value={income} 
             onChange={(e) => onUpdateIncome(parseFloat(e.target.value) || 0)} 
           />
         </div>
         <div className="budget-input-item">
-          <label>Phân bổ gốc (Remain)</label>
-          <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', fontWeight: 700, fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#a5b4fc' }}>
-            {formatCurrency(portfolio?.Amount || 19139550)}
-          </div>
-        </div>
-        <div className="budget-input-item">
           <label>Số tiền cần giảm (Target)</label>
           <input 
             type="number" 
+            step="0.01"
             value={targetReduction} 
             onChange={(e) => onUpdateTargetReduction(parseFloat(e.target.value) || 0)} 
           />
@@ -1154,9 +1475,10 @@ function PortfolioPage({
                 <td style={{ textAlign: 'right' }}>
                   <input 
                     type="number" 
+                    step="0.01"
                     className="form-control"
                     style={{ textAlign: 'right', padding: '4px 8px', width: '130px', display: 'inline-block', height: '28px', fontSize: '0.85rem', fontFamily: 'var(--font-display)' }}
-                    value={Math.round(al.CurrentAmount)}
+                    value={al.CurrentAmount}
                     onChange={(e) => onUpdateAllocationCash(al.Id, parseFloat(e.target.value) || 0)}
                   />
                 </td>
@@ -1222,9 +1544,10 @@ function PortfolioPage({
                 <td style={{ textAlign: 'right' }}>
                   <input 
                     type="number" 
+                    step="0.01"
                     className="form-control"
                     style={{ textAlign: 'right', padding: '4px 8px', width: '130px', display: 'inline-block', height: '28px', fontSize: '0.85rem', fontFamily: 'var(--font-display)' }}
-                    value={Math.round(al.CurrentAmount)}
+                    value={al.CurrentAmount}
                     onChange={(e) => onUpdateAllocationCash(al.Id, parseFloat(e.target.value) || 0)}
                   />
                 </td>

@@ -144,7 +144,8 @@ const setStorage = <T>(key: string, value: T): void => {
   localStorage.setItem(key, JSON.stringify(value));
 };
 
-if (!localStorage.getItem('fm_assets')) {
+// Only seed localStorage with demo data when running in demo mode
+if (localStorage.getItem('fm_is_demo') === 'true' && !localStorage.getItem('fm_assets')) {
   setStorage('fm_assets', DEFAULT_ASSETS);
   setStorage('fm_portfolios', [DEFAULT_PORTFOLIO]);
   setStorage('fm_allocations', DEFAULT_ALLOCATIONS);
@@ -177,6 +178,8 @@ export const authService = {
   login: async (email: string, password: string): Promise<{ token: string; user: any }> => {
     localStorage.setItem('fm_is_demo', 'false');
     isDemoMode = false;
+    // Clear any demo-seeded data so real API data is loaded fresh
+    ['fm_assets', 'fm_portfolios', 'fm_allocations', 'fm_income', 'fm_target_reduction', 'fm_exclusions'].forEach(k => localStorage.removeItem(k));
     
     const res = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
@@ -202,6 +205,8 @@ export const authService = {
   register: async (email: string, password: string, displayName: string): Promise<{ token: string; user: any }> => {
     localStorage.setItem('fm_is_demo', 'false');
     isDemoMode = false;
+    // Clear any demo-seeded data so real API data is loaded fresh
+    ['fm_assets', 'fm_portfolios', 'fm_allocations', 'fm_income', 'fm_target_reduction', 'fm_exclusions'].forEach(k => localStorage.removeItem(k));
 
     const res = await fetch(`${API_URL}/auth/register`, {
       method: 'POST',
@@ -268,7 +273,8 @@ export const assetService = {
     } catch (e) {
       console.error('Error fetching assets:', e);
     }
-    return getStorage('fm_assets', DEFAULT_ASSETS);
+    // Non-demo: do NOT fall back to demo data; return empty list
+    return [];
   },
 
   create: async (asset: { Name: string; InitialValue: number; CurrentValue: number }, userId: string = getLoggedUserId()): Promise<any> => {
@@ -450,9 +456,8 @@ export const portfolioService = {
       console.error('Error fetching portfolio details:', e);
     }
 
-    const p = getStorage('fm_portfolios', [DEFAULT_PORTFOLIO])[0];
-    const allocs = getStorage('fm_allocations', DEFAULT_ALLOCATIONS);
-    return { portfolio: p, allocations: allocs };
+    // Non-demo: do NOT fall back to demo data; return empty state
+    return { portfolio: null, allocations: [] };
   },
 
   create: async (portfolio: { Name: string; Amount: number }, userId: string = getLoggedUserId()): Promise<any> => {
@@ -581,9 +586,16 @@ export const portfolioService = {
   },
 
   getBudgetCutConfig: () => {
-    const income = getStorage('fm_income', 19139550);
-    const targetReduction = getStorage('fm_target_reduction', 500000);
-    const exclusions = getStorage('fm_exclusions', ['al12']);
+    if (isDemoMode) {
+      const income = getStorage('fm_income', 19139550);
+      const targetReduction = getStorage('fm_target_reduction', 500000);
+      const exclusions = getStorage('fm_exclusions', ['al12']);
+      return { income, targetReduction, exclusions };
+    }
+    // Non-demo: read from localStorage if previously saved by real user, else clean defaults
+    const income = localStorage.getItem('fm_income') ? getStorage('fm_income', 0) : 0;
+    const targetReduction = localStorage.getItem('fm_target_reduction') ? getStorage('fm_target_reduction', 0) : 0;
+    const exclusions = localStorage.getItem('fm_exclusions') ? getStorage('fm_exclusions', []) : [];
     return { income, targetReduction, exclusions };
   },
 

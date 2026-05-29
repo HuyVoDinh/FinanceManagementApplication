@@ -24,9 +24,15 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
+        try { 
         var result = await _authService.RegisterAsync(request);
         return Ok(result);
     }
+    catch (Exception ex)
+    {
+        return BadRequest(new { Message = ex.Message });
+    }
+}
 
     /// <summary>
     /// Login
@@ -34,7 +40,14 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        var result = await _authService.LoginAsync(request);
-        return Ok(result);
+        try
+        {
+            var result = await _authService.LoginAsync(request);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
     }
 }
