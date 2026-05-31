@@ -6,6 +6,8 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using BCrypt.Net;
+using FinancialManagementApplication.Application.Interface.Repositories;
+using FinancialManagementApplication.Domain.Entities;
 
 namespace FinancialManagementApplication.Application.Services
 {
@@ -30,8 +32,13 @@ namespace FinancialManagementApplication.Application.Services
             {
                 AccountID = Guid.NewGuid(),
                 email = request.Email,
-                passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password)
+                passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                displayName = request.DisplayName,
+                CreateAt = DateTime.UtcNow,
+                UpdateAt = DateTime.UtcNow,
             };
+
+
 
             await _repo.AddAsync(account);
 

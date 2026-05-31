@@ -8,5 +8,8 @@ namespace FinancialManagementApplication.Application.DTOs.Auth
     {
         public string Email { get; set; } = default!;
         public string Password { get; set; } = default!;
+        public string DisplayName { get; set; } = default!;
+        public DateTime CreateAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdateAt { get; set; } = DateTime.UtcNow;
     }
 }

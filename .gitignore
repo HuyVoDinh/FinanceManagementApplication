@@ -55,3 +55,4 @@ nunit-*.xml
 /FinanceManagementApplication.API/.vs/FinanceManagementApplication.API.slnx
 /FinancialManagementApplication.API/.vs
 /FinancialManagementApplication.API/FinancialManagementApplication.API/appsettings.json
+/FinancialManagementApplication.API/node_modules
