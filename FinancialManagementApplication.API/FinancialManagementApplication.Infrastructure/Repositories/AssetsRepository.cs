@@ -115,6 +115,13 @@ namespace FinancialManagementApplication.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task<decimal> GetCurrentTotalValueAsync(Guid accountId)
+        {
+            return await _context.Assets
+                .Where(a => a.AccountID == accountId)
+                .SumAsync(a => a.CurrentValue);
+        }
+
         public async Task<bool> RestoreFromHistoryAsync(Guid historyId)
         {
             var history = await _context.AssetHistories

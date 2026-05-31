@@ -19,5 +19,6 @@ namespace FinancialManagementApplication.Application.Interface.Repositories
         Task<IEnumerable<AssetHistory>> GetHistoryAsync(Guid accountId);
         Task<bool> RestoreFromHistoryAsync(Guid historyId);
         Task<IEnumerable<SnapshotSummary>> GetSnapshotValuesAsync(Guid accountId);
+        Task<decimal> GetCurrentTotalValueAsync(Guid accountId);
     }
 }

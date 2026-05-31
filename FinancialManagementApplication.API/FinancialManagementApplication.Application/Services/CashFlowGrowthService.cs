@@ -16,17 +16,19 @@ namespace FinancialManagementApplication.Application.Services
         public async Task<CashFlowGrowthResponse> GetGrowthDataAsync(Guid accountId, string mode, int? year = null)
         {
             var snapshots = (await _assetsRepository.GetSnapshotValuesAsync(accountId)).ToList();
+            var currentTotal = await _assetsRepository.GetCurrentTotalValueAsync(accountId);
+            var now = DateTime.UtcNow;
 
             return mode switch
             {
-                "yearly" => BuildYearly(snapshots),
-                "monthly" => BuildMonthly(snapshots, year ?? DateTime.UtcNow.Year),
-                "last12months" => BuildLast12Months(snapshots),
+                "yearly" => BuildYearly(snapshots, currentTotal, now),
+                "monthly" => BuildMonthly(snapshots, year ?? now.Year, currentTotal, now),
+                "last12months" => BuildLast12Months(snapshots, currentTotal, now),
                 _ => new CashFlowGrowthResponse { Mode = mode, Data = new List<CashFlowDataPoint>() }
             };
         }
 
-        private static CashFlowGrowthResponse BuildYearly(List<SnapshotSummary> snapshots)
+        private static CashFlowGrowthResponse BuildYearly(List<SnapshotSummary> snapshots, decimal currentTotal, DateTime now)
         {
             var yearlyData = snapshots
                 .GroupBy(s => s.RecordedAt.Year)
@@ -57,6 +59,23 @@ namespace FinancialManagementApplication.Application.Services
                 data.Add(dp);
             }
 
+            if (data.Count > 0)
+            {
+                var last = data[^1];
+                if (last.Date.Year == now.Year)
+                {
+                    last.Value = currentTotal;
+                    if (data.Count > 1)
+                    {
+                        var prev = data[^2].Value;
+                        last.ChangeFromPrevious = currentTotal - prev;
+                        last.ChangePercentage = prev != 0
+                            ? (last.ChangeFromPrevious / prev) * 100
+                            : null;
+                    }
+                }
+            }
+
             return new CashFlowGrowthResponse
             {
                 Mode = "yearly",
@@ -64,7 +83,7 @@ namespace FinancialManagementApplication.Application.Services
             };
         }
 
-        private static CashFlowGrowthResponse BuildMonthly(List<SnapshotSummary> snapshots, int year)
+        private static CashFlowGrowthResponse BuildMonthly(List<SnapshotSummary> snapshots, int year, decimal currentTotal, DateTime now)
         {
             var monthlyData = snapshots
                 .Where(s => s.RecordedAt.Year == year)
@@ -97,6 +116,23 @@ namespace FinancialManagementApplication.Application.Services
                 data.Add(dp);
             }
 
+            if (data.Count > 0)
+            {
+                var last = data[^1];
+                if (last.Date.Year == now.Year && last.Date.Month == now.Month)
+                {
+                    last.Value = currentTotal;
+                    if (data.Count > 1)
+                    {
+                        var prev = data[^2].Value;
+                        last.ChangeFromPrevious = currentTotal - prev;
+                        last.ChangePercentage = prev != 0
+                            ? (last.ChangeFromPrevious / prev) * 100
+                            : null;
+                    }
+                }
+            }
+
             return new CashFlowGrowthResponse
             {
                 Mode = "monthly",
@@ -105,9 +141,8 @@ namespace FinancialManagementApplication.Application.Services
             };
         }
 
-        private static CashFlowGrowthResponse BuildLast12Months(List<SnapshotSummary> snapshots)
+        private static CashFlowGrowthResponse BuildLast12Months(List<SnapshotSummary> snapshots, decimal currentTotal, DateTime now)
         {
-            var now = DateTime.UtcNow;
             var startDate = new DateTime(now.Year, now.Month, 1).AddMonths(-11);
 
             var months = new List<(int Year, int Month)>();
@@ -163,6 +198,23 @@ namespace FinancialManagementApplication.Application.Services
                         : null;
                 }
                 data.Add(dp);
+            }
+
+            if (data.Count > 0)
+            {
+                var last = data[^1];
+                if (last.Date.Year == now.Year && last.Date.Month == now.Month)
+                {
+                    last.Value = currentTotal;
+                    if (data.Count > 1)
+                    {
+                        var prev = data[^2].Value;
+                        last.ChangeFromPrevious = currentTotal - prev;
+                        last.ChangePercentage = prev != 0
+                            ? (last.ChangeFromPrevious / prev) * 100
+                            : null;
+                    }
+                }
             }
 
             return new CashFlowGrowthResponse
