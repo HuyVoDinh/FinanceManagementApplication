@@ -438,6 +438,11 @@ button, input, select, textarea {
   box-shadow: 0 0 0 2px var(--primary-glow);
 }
 
+select option {
+  background: var(--bg-secondary, #1a1a2e);
+  color: var(--text-primary, #e0e0e0);
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;
