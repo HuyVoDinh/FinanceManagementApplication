@@ -24,6 +24,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<PortfolioAllocationHistory> PortfolioAllocationHistories => Set<PortfolioAllocationHistory>();
     public DbSet<PortfolioAllocationHistoryDetail> PortfolioAllocationHistoryDetails => Set<PortfolioAllocationHistoryDetail>();
     public DbSet<Goal> Goals => Set<Goal>();
+    public DbSet<Debt> Debts => Set<Debt>();
+    public DbSet<DebtPayment> DebtPayments => Set<DebtPayment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -89,6 +91,23 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Goal>(entity =>
         {
             entity.Property(e => e.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<Debt>(entity =>
+        {
+            entity.HasOne(d => d.Account)
+                .WithMany(a => a.Debts)
+                .HasForeignKey(d => d.AccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(d => d.Payments)
+                .WithOne(p => p.Debt)
+                .HasForeignKey(p => p.DebtId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Property(e => e.Type)
                 .HasConversion<string>()
                 .HasMaxLength(20);
         });

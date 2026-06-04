@@ -1066,6 +1066,264 @@ export const goalService = {
   }
 };
 
+// Debt mapper
+const mapDebtToFrontend = (d: any) => ({
+  Id: d.id || d.Id,
+  AccountId: d.accountId || d.accountID || d.AccountId,
+  Name: d.name || d.Name,
+  TotalDebt: d.totalDebt !== undefined ? Number(d.totalDebt) : Number(d.TotalDebt || 0),
+  PaidAmount: d.paidAmount !== undefined ? Number(d.paidAmount) : Number(d.PaidAmount || 0),
+  RemainingAmount: d.remainingAmount !== undefined ? Number(d.remainingAmount) : Number(d.RemainingAmount || 0),
+  BorrowDate: d.borrowDate || d.BorrowDate,
+  DueDate: d.dueDate || d.DueDate || null,
+  Note: d.note || d.Note || null,
+  Description: d.description || d.Description || null,
+  Type: d.type || d.Type || 'Borrowed',
+  IsClosed: d.isClosed !== undefined ? d.isClosed : d.IsClosed || false,
+  CreatedAt: d.createdAt || d.CreatedAt,
+  UpdatedAt: d.updatedAt || d.UpdatedAt,
+  Payments: (d.payments || d.Payments || []).map((p: any) => ({
+    Id: p.id || p.Id,
+    DebtId: p.debtId || p.DebtId,
+    PaymentDate: p.paymentDate || p.PaymentDate,
+    Amount: p.amount !== undefined ? Number(p.amount) : Number(p.Amount || 0),
+    RemainingAfterPayment: p.remainingAfterPayment !== undefined ? Number(p.remainingAfterPayment) : Number(p.RemainingAfterPayment || 0),
+    Note: p.note || p.Note || null,
+    CreatedAt: p.createdAt || p.CreatedAt
+  }))
+});
+
+const DEFAULT_DEBTS: any[] = [
+  { Id: 'd1', AccountId: 'u1', Name: 'Vay mua xe', Type: 'Borrowed', TotalDebt: 300000000, PaidAmount: 100000000, RemainingAmount: 200000000, BorrowDate: '2025-06-01T00:00:00Z', DueDate: '2027-06-01T00:00:00Z', Note: 'Vay ngân hàng', IsClosed: false, CreatedAt: '2025-06-01T00:00:00Z', UpdatedAt: '2025-06-01T00:00:00Z', Payments: [
+    { Id: 'dp1', DebtId: 'd1', PaymentDate: '2025-12-01T00:00:00Z', Amount: 50000000, RemainingAfterPayment: 250000000, Note: 'Đợt 1', CreatedAt: '2025-12-01T00:00:00Z' },
+    { Id: 'dp2', DebtId: 'd1', PaymentDate: '2026-03-01T00:00:00Z', Amount: 50000000, RemainingAfterPayment: 200000000, Note: 'Đợt 2', CreatedAt: '2026-03-01T00:00:00Z' }
+  ]},
+  { Id: 'd2', AccountId: 'u1', Name: 'Vay bạn bè', Type: 'Borrowed', TotalDebt: 50000000, PaidAmount: 0, RemainingAmount: 50000000, BorrowDate: '2026-04-15T00:00:00Z', DueDate: null, Note: 'Vay tiền mua laptop', IsClosed: false, CreatedAt: '2026-04-15T00:00:00Z', UpdatedAt: '2026-04-15T00:00:00Z', Payments: [] },
+  { Id: 'd3', AccountId: 'u1', Name: 'Cho bạn mượn', Type: 'Lent', TotalDebt: 15000000, PaidAmount: 5000000, RemainingAmount: 10000000, BorrowDate: '2026-02-01T00:00:00Z', DueDate: '2026-08-01T00:00:00Z', Note: 'Cho bạn mượn mua xe', IsClosed: false, CreatedAt: '2026-02-01T00:00:00Z', UpdatedAt: '2026-02-01T00:00:00Z', Payments: [
+    { Id: 'dp4', DebtId: 'd3', PaymentDate: '2026-03-01T00:00:00Z', Amount: 5000000, RemainingAfterPayment: 10000000, Note: 'Trả đợt 1', CreatedAt: '2026-03-01T00:00:00Z' }
+  ]},
+  { Id: 'd4', AccountId: 'u1', Name: 'Thẻ tín dụng', Type: 'Borrowed', TotalDebt: 20000000, PaidAmount: 20000000, RemainingAmount: 0, BorrowDate: '2026-01-10T00:00:00Z', DueDate: '2026-02-10T00:00:00Z', Note: 'Đã trả hết', IsClosed: true, CreatedAt: '2026-01-10T00:00:00Z', UpdatedAt: '2026-02-10T00:00:00Z', Payments: [
+    { Id: 'dp5', DebtId: 'd4', PaymentDate: '2026-02-10T00:00:00Z', Amount: 20000000, RemainingAfterPayment: 0, Note: 'Tất toán', CreatedAt: '2026-02-10T00:00:00Z' }
+  ]}
+];
+
+if (localStorage.getItem('fm_is_demo') === 'true' && !localStorage.getItem('fm_debts')) {
+  setStorage('fm_debts', DEFAULT_DEBTS);
+}
+
+// Debt Service
+export const debtService = {
+  getAll: async (userId: string = getLoggedUserId()): Promise<any[]> => {
+    await checkConnection();
+    if (isDemoMode) {
+      return getStorage('fm_debts', DEFAULT_DEBTS).map(mapDebtToFrontend);
+    }
+    try {
+      const res = await fetch(`${API_URL}/debts/user/${userId}`, {
+        headers: { ...getAuthHeader() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.map(mapDebtToFrontend);
+      }
+    } catch (e) {
+      console.error('Error fetching debts:', e);
+    }
+    return [];
+  },
+
+  create: async (debt: { Name: string; TotalDebt: number; BorrowDate: string; DueDate?: string; Note?: string; Description?: string; Type?: string }, userId: string = getLoggedUserId()): Promise<any> => {
+    await checkConnection();
+    const mockId = 'd-' + Math.random().toString(36).substr(2, 9);
+    const now = new Date().toISOString();
+    const newDebtFrontend = {
+      Id: mockId,
+      AccountId: userId,
+      Name: debt.Name,
+      TotalDebt: debt.TotalDebt,
+      PaidAmount: 0,
+      RemainingAmount: debt.TotalDebt,
+      BorrowDate: debt.BorrowDate,
+      DueDate: debt.DueDate || null,
+      Note: debt.Note || null,
+      Description: debt.Description || null,
+      Type: debt.Type || 'Borrowed',
+      IsClosed: false,
+      CreatedAt: now,
+      UpdatedAt: now,
+      Payments: []
+    };
+
+    if (isDemoMode) {
+      const list = getStorage('fm_debts', DEFAULT_DEBTS);
+      list.push(newDebtFrontend);
+      setStorage('fm_debts', list);
+      return newDebtFrontend;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/debts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({
+          accountId: userId,
+          name: debt.Name,
+          totalDebt: debt.TotalDebt,
+          borrowDate: debt.BorrowDate,
+          dueDate: debt.DueDate || null,
+          note: debt.Note || null,
+          description: debt.Description || null,
+          type: debt.Type || 'Borrowed'
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return mapDebtToFrontend(data);
+      }
+    } catch (e) {
+      console.error('Error creating debt:', e);
+    }
+
+    throw new Error('Cannot create debt on server.');
+  },
+
+  update: async (id: string, debt: { Name: string; TotalDebt: number; BorrowDate: string; DueDate?: string; Note?: string; Description?: string; Type?: string }, _userId: string = getLoggedUserId()): Promise<void> => {
+    await checkConnection();
+    if (isDemoMode) {
+      const list = getStorage('fm_debts', DEFAULT_DEBTS);
+      const idx = list.findIndex((d: any) => d.Id === id);
+      if (idx !== -1) {
+        const paid = list[idx].PaidAmount || 0;
+        list[idx] = { ...list[idx], Name: debt.Name, TotalDebt: debt.TotalDebt, RemainingAmount: Math.max(0, debt.TotalDebt - paid), BorrowDate: debt.BorrowDate, DueDate: debt.DueDate || null, Note: debt.Note || null, Description: debt.Description || null, UpdatedAt: new Date().toISOString() };
+        if (list[idx].RemainingAmount <= 0) { list[idx].RemainingAmount = 0; list[idx].IsClosed = true; }
+        setStorage('fm_debts', list);
+      }
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/debts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({
+          name: debt.Name,
+          totalDebt: debt.TotalDebt,
+          borrowDate: debt.BorrowDate,
+          dueDate: debt.DueDate || null,
+          note: debt.Note || null,
+          description: debt.Description || null,
+          type: debt.Type || 'Borrowed'
+        })
+      });
+      if (res.ok) return;
+    } catch (e) {
+      console.error('Error updating debt:', e);
+    }
+
+    throw new Error('Cannot update debt on server.');
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await checkConnection();
+    if (isDemoMode) {
+      const list = getStorage('fm_debts', DEFAULT_DEBTS);
+      const filtered = list.filter((d: any) => d.Id !== id);
+      setStorage('fm_debts', filtered);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/debts/${id}`, {
+        method: 'DELETE',
+        headers: { ...getAuthHeader() }
+      });
+      if (res.ok) return;
+    } catch (e) {
+      console.error('Error deleting debt:', e);
+    }
+  },
+
+  close: async (id: string): Promise<void> => {
+    await checkConnection();
+    if (isDemoMode) {
+      const list = getStorage('fm_debts', DEFAULT_DEBTS);
+      const idx = list.findIndex((d: any) => d.Id === id);
+      if (idx !== -1) {
+        list[idx].IsClosed = true;
+        list[idx].RemainingAmount = 0;
+        list[idx].UpdatedAt = new Date().toISOString();
+        setStorage('fm_debts', list);
+      }
+      return;
+    }
+
+    try {
+      await fetch(`${API_URL}/debts/${id}/close`, {
+        method: 'POST',
+        headers: { ...getAuthHeader() }
+      });
+    } catch (e) {
+      console.error('Error closing debt:', e);
+      throw new Error('Cannot close debt.');
+    }
+  },
+
+  addPayment: async (debtId: string, payment: { PaymentDate: string; Amount: number; Note?: string }): Promise<any> => {
+    await checkConnection();
+    const mockId = 'dp-' + Math.random().toString(36).substr(2, 9);
+
+    if (isDemoMode) {
+      const list = getStorage('fm_debts', DEFAULT_DEBTS);
+      const idx = list.findIndex((d: any) => d.Id === debtId);
+      if (idx === -1) throw new Error('Debt not found.');
+      if (list[idx].IsClosed) throw new Error('Cannot add payment to a closed debt.');
+
+      const newPayment = {
+        Id: mockId,
+        DebtId: debtId,
+        PaymentDate: payment.PaymentDate,
+        Amount: payment.Amount,
+        Note: payment.Note || null,
+        CreatedAt: new Date().toISOString()
+      };
+
+      list[idx].PaidAmount = (list[idx].PaidAmount || 0) + payment.Amount;
+      list[idx].RemainingAmount = Math.max(0, list[idx].TotalDebt - list[idx].PaidAmount);
+      newPayment.RemainingAfterPayment = list[idx].RemainingAmount;
+      if (list[idx].RemainingAmount <= 0) {
+        list[idx].RemainingAmount = 0;
+        list[idx].IsClosed = true;
+      }
+      list[idx].UpdatedAt = new Date().toISOString();
+      if (!list[idx].Payments) list[idx].Payments = [];
+      list[idx].Payments.push(newPayment);
+      setStorage('fm_debts', list);
+      return newPayment;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/debts/${debtId}/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({
+          debtId,
+          paymentDate: payment.PaymentDate,
+          amount: payment.Amount,
+          note: payment.Note || null
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+    } catch (e) {
+      console.error('Error adding payment:', e);
+    }
+
+    throw new Error('Cannot add payment on server.');
+  }
+};
+
 // Cash Flow Growth Service
 export const cashFlowService = {
   getGrowthData: async (accountId: string, mode: string = 'yearly', year?: number): Promise<any> => {

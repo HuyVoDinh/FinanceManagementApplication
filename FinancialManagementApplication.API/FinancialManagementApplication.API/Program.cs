@@ -7,6 +7,9 @@ using FinancialManagementApplication.Infrastructure.Data;
 using FinancialManagementApplication.Infrastructure.Repositories;
 using FinancialManagementApplication.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
+
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +18,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers()
     .AddJsonOptions(opts =>
     {
+        opts.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
         opts.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
 builder.Services.AddEndpointsApiExplorer();
@@ -31,6 +35,7 @@ builder.Services.AddScoped<IPortfolioRepository, PortfolioRepository>();
 builder.Services.AddScoped<IPortfolioAllocationRepository, PortfolioAllocationRepository>();
 builder.Services.AddScoped<ICashFlowGrowthService, CashFlowGrowthService>();
 builder.Services.AddScoped<IGoalRepository, GoalRepository>();
+builder.Services.AddScoped<IDebtRepository, DebtRepository>();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("DefaultConnection")

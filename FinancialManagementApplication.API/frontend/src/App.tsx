@@ -8,6 +8,7 @@ import {
   historyService,
   cashFlowService,
   goalService,
+  debtService,
   checkConnection, 
   getLoggedUser
 } from './services/api';
@@ -69,7 +70,7 @@ const formatDateTime = (iso: string) => {
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'assets' | 'portfolio' | 'goals'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'assets' | 'portfolio' | 'goals' | 'debts'>('dashboard');
   const [isDemo, setIsDemo] = useState<boolean>(true);
   const { t, locale, setLocale } = useLanguage();
   
@@ -80,6 +81,7 @@ export default function App() {
   const [historyRecords, setHistoryRecords] = useState<any[]>([]);
   const [allocationHistoryRecords, setAllocationHistoryRecords] = useState<any[]>([]);
   const [goals, setGoals] = useState<any[]>([]);
+  const [debts, setDebts] = useState<any[]>([]);
   
   // Budget cut states
   const [income, setIncome] = useState<number>(19139550);
@@ -157,6 +159,8 @@ export default function App() {
       setAllocationHistoryRecords(allocHistory);
       const goalList = await goalService.getAll(user.id);
       setGoals(goalList);
+      const debtList = await debtService.getAll(user.id);
+      setDebts(debtList);
     } catch (err: any) {
       setError(err.message || t('Không thể tải dữ liệu.'));
     }
@@ -217,6 +221,7 @@ export default function App() {
     setAssets([]);
     setPortfolio(null);
     setAllocations([]);
+    setDebts([]);
   };
 
   // Asset Handlers
@@ -608,6 +613,12 @@ export default function App() {
             >
               {t('Mục tiêu')}
             </button>
+            <button 
+              className={`nav-link ${activeTab === 'debts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('debts')}
+            >
+              {t('Quản lý nợ')}
+            </button>
           </div>
 
           <div className="nav-right">
@@ -720,6 +731,14 @@ export default function App() {
             userId={user?.id}
             totalCurrent={totalCurrent}
             onRefresh={loadData}
+          />
+        )}
+
+        {activeTab === 'debts' && (
+          <DebtPage
+            debts={debts}
+            userId={user?.id}
+            onRefresh={() => { loadData(); }}
           />
         )}
       </main>
@@ -2577,11 +2596,382 @@ function MoneyInput({ value, onChange, className = '', style, placeholder }: {
 }
 
 // 5. ALLOCATION HISTORY SECTION COMPONENT
+function DebtPage({ debts, userId, onRefresh }: { debts: any[]; userId: string; onRefresh: () => void }) {
+  const { t, locale } = useLanguage();
+  const [formName, setFormName] = useState('');
+  const [formTotalDebt, setFormTotalDebt] = useState('');
+  const [formBorrowDate, setFormBorrowDate] = useState('');
+  const [formDueDate, setFormDueDate] = useState('');
+  const [formNote, setFormNote] = useState('');
+  const [formDescription, setFormDescription] = useState('');
+  const [formType, setFormType] = useState('Borrowed');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentNote, setPaymentNote] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [editingDebt, setEditingDebt] = useState<any>(null);
+  const [payingDebt, setPayingDebt] = useState<any>(null);
+  const [payingError, setPayingError] = useState('');
+
+  const openCreate = () => {
+    setEditingDebt(null);
+    setFormName('');
+    setFormTotalDebt('');
+    setFormBorrowDate(new Date().toISOString().split('T')[0]);
+    setFormDueDate('');
+    setFormNote('');
+    setFormDescription('');
+    setFormType('Borrowed');
+    setShowModal(true);
+  };
+
+  const openEdit = (debt: any) => {
+    setEditingDebt(debt);
+    setFormName(debt.Name || '');
+    setFormTotalDebt(String(debt.TotalDebt || 0));
+    setFormBorrowDate(debt.BorrowDate ? debt.BorrowDate.split('T')[0] : '');
+    setFormDueDate(debt.DueDate ? debt.DueDate.split('T')[0] : '');
+    setFormNote(debt.Note || '');
+    setFormDescription(debt.Description || '');
+    setFormType(debt.Type || 'Borrowed');
+    setShowModal(true);
+  };
+
+  const handleSaveDebt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload: any = {
+        Name: formName,
+        TotalDebt: parseFloat(formTotalDebt.replace(/,/g, '')) || 0,
+        BorrowDate: formBorrowDate,
+        DueDate: formDueDate || undefined,
+        Note: formNote || undefined,
+        Description: formDescription || undefined,
+        Type: formType
+      };
+      if (editingDebt) {
+        await debtService.update(editingDebt.Id, payload, userId);
+      } else {
+        await debtService.create(payload, userId);
+      }
+      setShowModal(false);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || t('Có lỗi xảy ra'));
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm(t('Xác nhận xóa sổ nợ này?'))) return;
+    try {
+      await debtService.delete(id, userId);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || t('Có lỗi xảy ra'));
+    }
+  };
+
+  const handleClose = async (id: string) => {
+    if (!window.confirm(t('Xác nhận đóng sổ nợ này?'))) return;
+    try {
+      await debtService.close(id, userId);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || t('Có lỗi xảy ra'));
+    }
+  };
+
+  const openPaymentModal = (debt: any) => {
+    setPayingDebt(debt);
+    setPaymentAmount('');
+    setPaymentNote('');
+    setPayingError('');
+    setShowPaymentModal(true);
+  };
+
+  const handleAddPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payingDebt) return;
+    const amount = parseFloat(paymentAmount.replace(/,/g, '')) || 0;
+    if (amount <= 0) { setPayingError(t('Số tiền phải lớn hơn 0')); return; }
+    const remaining = payingDebt.RemainingAmount ?? (payingDebt.TotalDebt - payingDebt.PaidAmount);
+    if (amount > remaining) {
+      if (!window.confirm(t('Số tiền thanh toán vượt quá số dư còn lại. Bạn có chắc muốn tiếp tục?'))) return;
+    }
+    try {
+      await debtService.addPayment(payingDebt.Id, {
+        Amount: amount,
+        Note: paymentNote || undefined
+      }, userId);
+      setShowPaymentModal(false);
+      setPayingDebt(null);
+      onRefresh();
+    } catch (err: any) {
+      setPayingError(err.message || t('Có lỗi xảy ra'));
+    }
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedId(expandedId === id ? null : id);
+  };
+
+  const totalDebtCount = debts.length;
+  const totalOutstanding = debts.reduce((s, d) => s + (d.RemainingAmount ?? (d.TotalDebt - d.PaidAmount)), 0);
+  const totalPaid = debts.reduce((s, d) => s + (d.PaidAmount || 0), 0);
+  const nearestDueDebt = debts
+    .filter(d => !d.IsClosed && d.DueDate)
+    .sort((a, b) => new Date(a.DueDate).getTime() - new Date(b.DueDate).getTime())[0] || null;
+
+  const getStatusBadge = (debt: any) => {
+    if (debt.IsClosed) return { text: t('Đã đóng'), bg: 'rgba(16,185,129,0.15)', color: '#10b981' };
+    const remaining = debt.RemainingAmount ?? (debt.TotalDebt - debt.PaidAmount);
+    if (remaining <= 0) return { text: t('Đã đóng'), bg: 'rgba(16,185,129,0.15)', color: '#10b981' };
+    if (debt.DueDate && new Date(debt.DueDate) < new Date()) return { text: t('Quá hạn'), bg: 'rgba(239,68,68,0.15)', color: '#ef4444' };
+    return { text: t('Đang vay'), bg: 'rgba(99,102,241,0.15)', color: 'var(--primary)' };
+  };
+
+  const getTypeBadge = (type: string) => {
+    if (type === 'Lent') return { text: t('Cho vay'), bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' };
+    return { text: t('Vay'), bg: 'rgba(99,102,241,0.15)', color: 'var(--primary)' };
+  };
+
+  const formatDate = (iso: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  };
+
+  return (
+    <div className="debt-page">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0 }}>{t('Quản lý nợ')}</h2>
+        <button className="btn" onClick={openCreate} style={{
+          background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '6px',
+          padding: '8px 16px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem'
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '6px', verticalAlign: 'middle' }}>
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          {t('Thêm sổ nợ')}
+        </button>
+      </div>
+
+      <div className="summary-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+        <div className="summary-card" style={{ background: 'rgba(99,102,241,0.08)', borderRadius: '10px', padding: '16px' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>{t('Tổng sổ nợ')}</div>
+          <div style={{ fontSize: '1.3rem', fontWeight: 700, fontFamily: 'var(--font-display)' }}>{totalDebtCount}</div>
+        </div>
+        <div className="summary-card" style={{ background: 'rgba(239,68,68,0.08)', borderRadius: '10px', padding: '16px' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>{t('Còn nợ')}</div>
+          <div style={{ fontSize: '1.3rem', fontWeight: 700, fontFamily: 'var(--font-display)', color: '#ef4444' }}>{formatInputNumber(totalOutstanding)}</div>
+        </div>
+        <div className="summary-card" style={{ background: 'rgba(16,185,129,0.08)', borderRadius: '10px', padding: '16px' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>{t('Đã trả')}</div>
+          <div style={{ fontSize: '1.3rem', fontWeight: 700, fontFamily: 'var(--font-display)', color: '#10b981' }}>{formatInputNumber(totalPaid)}</div>
+        </div>
+        <div className="summary-card" onClick={() => { if (nearestDueDebt) { setExpandedId(nearestDueDebt.Id); setTimeout(() => { const el = document.getElementById('debt-row-' + nearestDueDebt.Id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50); } }} style={{ background: 'rgba(245,158,11,0.08)', borderRadius: '10px', padding: '16px', cursor: nearestDueDebt ? 'pointer' : 'default', transition: 'var(--transition-smooth)' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>{t('Sắp đến hạn')}</div>
+          <div style={{ fontSize: nearestDueDebt ? '1rem' : '1.3rem', fontWeight: 700, fontFamily: 'var(--font-display)', color: '#f59e0b' }}>{nearestDueDebt ? nearestDueDebt.Name : '—'}</div>
+          {nearestDueDebt && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>{formatDate(nearestDueDebt.DueDate)}</div>}
+        </div>
+      </div>
+
+      {debts.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: '12px', opacity: 0.5 }}>
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          <div>{t('Chưa có sổ nợ nào')}</div>
+          <button className="btn" onClick={openCreate} style={{ marginTop: '16px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 20px', cursor: 'pointer' }}>
+            {t('Tạo sổ nợ đầu tiên')}
+          </button>
+        </div>
+      ) : (
+        <div className="table-container" style={{ overflowX: 'auto', borderRadius: '10px', border: '1px solid var(--border)' }}>
+          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+            <thead>
+              <tr style={{ background: 'var(--bg-secondary)' }}>
+                <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600 }}>{t('Tên')}</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600 }}>{t('Loại')}</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>{t('Tổng nợ')}</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>{t('Đã trả')}</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>{t('Còn lại')}</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600 }}>{t('Ngày vay')}</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600 }}>{t('Hạn trả')}</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600 }}>{t('Ghi chú')}</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600 }}>{t('Trạng thái')}</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600 }}>{t('Thao tác')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {debts.map((debt: any) => {
+                const remaining = debt.RemainingAmount ?? (debt.TotalDebt - (debt.PaidAmount || 0));
+                const statusBadge = getStatusBadge(debt);
+                const typeBadge = getTypeBadge(debt.Type);
+                const isExpanded = expandedId === debt.Id;
+                return (
+                  <React.Fragment key={debt.Id}>
+                    <tr id={`debt-row-${debt.Id}`} onClick={() => toggleExpand(debt.Id)} style={{ cursor: 'pointer', borderBottom: '1px solid var(--border)', background: isExpanded ? 'rgba(99,102,241,0.04)' : 'transparent' }}>
+                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{debt.Name}</td>
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '10px', fontWeight: 600, background: typeBadge.bg, color: typeBadge.color }}>{typeBadge.text}</span>
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-display)' }}>{formatInputNumber(debt.TotalDebt)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-display)', color: '#10b981' }}>{formatInputNumber(debt.PaidAmount || 0)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-display)', color: remaining > 0 ? '#ef4444' : '#10b981', fontWeight: 700 }}>{formatInputNumber(remaining)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>{formatDate(debt.BorrowDate)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>{debt.DueDate ? formatDate(debt.DueDate) : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                      <td style={{ padding: '10px 12px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: debt.Note ? 'inherit' : 'var(--text-muted)' }}>{debt.Note || '—'}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '10px', fontWeight: 600, background: statusBadge.bg, color: statusBadge.color }}>{statusBadge.text}</span>
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                          {!debt.IsClosed && remaining > 0 && (
+                            <button onClick={(e) => { e.stopPropagation(); openPaymentModal(debt); }} style={{ background: 'rgba(16,185,129,0.1)', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.75rem', color: '#10b981' }} title={t('Thanh toán')}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                            </button>
+                          )}
+                          {!debt.IsClosed && (
+                            <button onClick={(e) => { e.stopPropagation(); handleClose(debt.Id); }} style={{ background: 'rgba(99,102,241,0.1)', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--primary)' }} title={t('Đóng sổ')}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            </button>
+                          )}
+                          <button onClick={(e) => { e.stopPropagation(); openEdit(debt); }} style={{ background: 'rgba(245,158,11,0.1)', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.75rem', color: '#f59e0b' }} title={t('Sửa')}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete(debt.Id); }} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.75rem', color: '#ef4444' }} title={t('Xóa')}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${debt.Id}-expanded`}>
+                        <td colSpan={10} style={{ padding: '16px 20px', background: 'rgba(99,102,241,0.02)', borderBottom: '1px solid var(--border)' }}>
+                          {debt.Description && (
+                            <div style={{ marginBottom: '12px', padding: '12px', background: 'rgba(99,102,241,0.05)', borderRadius: '8px', fontSize: '0.85rem', lineHeight: 1.6, color: 'var(--text-muted)' }}>
+                              <div style={{ fontWeight: 600, marginBottom: '4px', color: 'var(--text)' }}>{t('Mô tả')}</div>
+                              {debt.Description}
+                            </div>
+                          )}
+                          <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text)' }}>{t('Lịch sử thanh toán')}</div>
+                          {(!debt.Payments || debt.Payments.length === 0) ? (
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>{t('Chưa có thanh toán nào')}</div>
+                          ) : (
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                              <thead>
+                                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                  <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600 }}>{t('Ngày')}</th>
+                                  <th style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>{t('Số tiền')}</th>
+                                  <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600 }}>{t('Ghi chú')}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(debt.Payments || []).map((pmt: any) => (
+                                  <tr key={pmt.Id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <td style={{ padding: '6px 8px' }}>{formatDateTime(pmt.PaymentDate || pmt.CreatedAt)}</td>
+                                    <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'var(--font-display)', color: '#10b981', fontWeight: 600 }}>{formatInputNumber(pmt.Amount)}</td>
+                                    <td style={{ padding: '6px 8px', color: pmt.Note ? 'inherit' : 'var(--text-muted)' }}>{pmt.Note || '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Create/Edit Modal */}
+      {showModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="modal" style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ margin: '0 0 16px' }}>{editingDebt ? t('Sửa sổ nợ') : t('Thêm sổ nợ mới')}</h3>
+            <form onSubmit={handleSaveDebt}>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label className="form-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>{t('Tên')} *</label>
+                <input className="form-control" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.85rem' }} value={formName} onChange={(e) => setFormName(e.target.value)} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label className="form-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>{t('Loại')}</label>
+                <select className="form-control" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: '0.85rem' }} value={formType} onChange={(e) => setFormType(e.target.value)}>
+                  <option value="Borrowed">{t('Vay')}</option>
+                  <option value="Lent">{t('Cho vay')}</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label className="form-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>{t('Tổng nợ')} *</label>
+                <input className="form-control" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.85rem' }} value={formatInputNumber(parseFloat(formTotalDebt.replace(/,/g, '')) || 0)} onChange={(e) => setFormTotalDebt(e.target.value.replace(/,/g, ''))} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label className="form-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>{t('Ngày vay')} *</label>
+                <input className="form-control" type="date" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.85rem' }} value={formBorrowDate} onChange={(e) => setFormBorrowDate(e.target.value)} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label className="form-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>{t('Hạn trả')}</label>
+                <input className="form-control" type="date" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.85rem' }} value={formDueDate} onChange={(e) => setFormDueDate(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label className="form-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>{t('Mô tả')}</label>
+                <textarea className="form-control" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.85rem', resize: 'vertical' }} value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder={t('Nhập mô tả')} rows={3} />
+              </div>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label className="form-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>{t('Ghi chú')}</label>
+                <input className="form-control" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.85rem' }} value={formNote} onChange={(e) => setFormNote(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>{t('Hủy')}</button>
+                <button type="submit" style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>{editingDebt ? t('Lưu') : t('Thêm')}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && payingDebt && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="modal" style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '420px' }}>
+            <h3 style={{ margin: '0 0 4px' }}>{t('Thêm thanh toán')}</h3>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              {payingDebt.Name} — {t('Còn lại')}: <strong style={{ fontFamily: 'var(--font-display)' }}>{formatInputNumber(payingDebt.RemainingAmount ?? (payingDebt.TotalDebt - payingDebt.PaidAmount))}</strong>
+            </div>
+            <form onSubmit={handleAddPayment}>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label className="form-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>{t('Số tiền')} *</label>
+                <input className="form-control" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.85rem' }} value={formatInputNumber(parseFloat(paymentAmount.replace(/,/g, '')) || 0)} onChange={(e) => setPaymentAmount(e.target.value.replace(/,/g, ''))} required autoFocus />
+              </div>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label className="form-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>{t('Ghi chú')}</label>
+                <input className="form-control" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.85rem' }} value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} />
+              </div>
+              {payingError && <div style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '8px' }}>{payingError}</div>}
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowPaymentModal(false); setPayingDebt(null); }} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>{t('Hủy')}</button>
+                <button type="submit" style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: '#10b981', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>{t('Xác nhận')}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AllocationHistorySection({ records, onRestore, formatDateTime, formatCurrency }: {
   records: any[];
   onRestore: (id: string) => void;
   formatDateTime: (iso: string) => string;
-  formatCurrency: (val: number) => string;
+  formatCurrency: (value: number) => string;
 }) {
   const { t } = useLanguage();
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
