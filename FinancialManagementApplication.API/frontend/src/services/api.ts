@@ -229,9 +229,10 @@ export const authService = {
     
     const decoded = decodeJwt(data.token);
     const mockUser = { 
-      id: decoded?.id || 'u1', 
-      email: decoded?.email || email, 
-      displayName: decoded?.displayName || 'Member' 
+      id: decoded?.id || data.accountId || 'u1', 
+      email: data.email || decoded?.email || email, 
+      displayName: data.displayName || decoded?.displayName || 'Member',
+      createdAt: data.createAt
     };
     
     localStorage.setItem('fm_token', data.token);
@@ -256,9 +257,10 @@ export const authService = {
     
     const decoded = decodeJwt(data.token);
     const mockUser = { 
-      id: decoded?.id || 'u1', 
-      email: decoded?.email || email, 
-      displayName: decoded?.displayName || displayName 
+      id: decoded?.id || data.accountId || 'u1', 
+      email: data.email || decoded?.email || email, 
+      displayName: data.displayName || decoded?.displayName || displayName,
+      createdAt: data.createAt
     };
     
     localStorage.setItem('fm_token', data.token);
@@ -279,7 +281,7 @@ export const authService = {
     setStorage('fm_target_reduction', 500000);
     setStorage('fm_exclusions', ['al12']);
 
-    const mockUser = { id: 'u1', email: 'demo@example.com', displayName: 'Demo User' };
+    const mockUser = { id: 'u1', email: 'demo@example.com', displayName: 'Demo User', createdAt: new Date().toISOString() };
     localStorage.setItem('fm_token', 'mock-jwt-token-12345');
     localStorage.setItem('fm_user', JSON.stringify(mockUser));
     triggerStatusChange();
@@ -289,6 +291,52 @@ export const authService = {
   logout: () => {
     localStorage.removeItem('fm_token');
     localStorage.removeItem('fm_user');
+  },
+
+  getProfile: async (accountId: string): Promise<any> => {
+    await checkConnection();
+    if (isDemoMode) {
+      const raw = getLoggedUser();
+      return { accountId: raw?.id || accountId, email: raw?.email || 'demo@example.com', displayName: raw?.displayName || 'Demo User', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    }
+    const res = await fetch(`${API_URL}/auth/profile/${accountId}`, { headers: getAuthHeader() });
+    if (!res.ok) throw new Error('Failed to get profile');
+    return res.json();
+  },
+
+  updateProfile: async (accountId: string, displayName: string): Promise<any> => {
+    await checkConnection();
+    if (isDemoMode) {
+      const raw = getLoggedUser();
+      const updated = { ...raw, displayName };
+      localStorage.setItem('fm_user', JSON.stringify(updated));
+      triggerStatusChange();
+      return { accountId, email: raw?.email || '', displayName, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    }
+    const res = await fetch(`${API_URL}/auth/profile/${accountId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify({ displayName })
+    });
+    if (!res.ok) throw new Error('Failed to update profile');
+    return res.json();
+  },
+
+  changePassword: async (accountId: string, currentPassword: string, newPassword: string): Promise<void> => {
+    await checkConnection();
+    if (isDemoMode) {
+      if (currentPassword !== 'demo123') throw new Error('Current password is incorrect');
+      return;
+    }
+    const res = await fetch(`${API_URL}/auth/change-password/${accountId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || 'Failed to change password');
+    }
   }
 };
 
@@ -1078,6 +1126,7 @@ const mapDebtToFrontend = (d: any) => ({
   DueDate: d.dueDate || d.DueDate || null,
   Note: d.note || d.Note || null,
   Description: d.description || d.Description || null,
+  InterestRate: d.interestRate !== undefined ? Number(d.interestRate) : d.InterestRate !== undefined ? Number(d.InterestRate) : null,
   Type: d.type || d.Type || 'Borrowed',
   IsClosed: d.isClosed !== undefined ? d.isClosed : d.IsClosed || false,
   CreatedAt: d.createdAt || d.CreatedAt,
@@ -1094,15 +1143,15 @@ const mapDebtToFrontend = (d: any) => ({
 });
 
 const DEFAULT_DEBTS: any[] = [
-  { Id: 'd1', AccountId: 'u1', Name: 'Vay mua xe', Type: 'Borrowed', TotalDebt: 300000000, PaidAmount: 100000000, RemainingAmount: 200000000, BorrowDate: '2025-06-01T00:00:00Z', DueDate: '2027-06-01T00:00:00Z', Note: 'Vay ngân hàng', IsClosed: false, CreatedAt: '2025-06-01T00:00:00Z', UpdatedAt: '2025-06-01T00:00:00Z', Payments: [
+  { Id: 'd1', AccountId: 'u1', Name: 'Vay mua xe', Type: 'Borrowed', TotalDebt: 300000000, PaidAmount: 100000000, RemainingAmount: 200000000, BorrowDate: '2025-06-01T00:00:00Z', DueDate: '2027-06-01T00:00:00Z', InterestRate: 8.5, Note: 'Vay ngân hàng', IsClosed: false, CreatedAt: '2025-06-01T00:00:00Z', UpdatedAt: '2025-06-01T00:00:00Z', Payments: [
     { Id: 'dp1', DebtId: 'd1', PaymentDate: '2025-12-01T00:00:00Z', Amount: 50000000, RemainingAfterPayment: 250000000, Note: 'Đợt 1', CreatedAt: '2025-12-01T00:00:00Z' },
     { Id: 'dp2', DebtId: 'd1', PaymentDate: '2026-03-01T00:00:00Z', Amount: 50000000, RemainingAfterPayment: 200000000, Note: 'Đợt 2', CreatedAt: '2026-03-01T00:00:00Z' }
   ]},
-  { Id: 'd2', AccountId: 'u1', Name: 'Vay bạn bè', Type: 'Borrowed', TotalDebt: 50000000, PaidAmount: 0, RemainingAmount: 50000000, BorrowDate: '2026-04-15T00:00:00Z', DueDate: null, Note: 'Vay tiền mua laptop', IsClosed: false, CreatedAt: '2026-04-15T00:00:00Z', UpdatedAt: '2026-04-15T00:00:00Z', Payments: [] },
-  { Id: 'd3', AccountId: 'u1', Name: 'Cho bạn mượn', Type: 'Lent', TotalDebt: 15000000, PaidAmount: 5000000, RemainingAmount: 10000000, BorrowDate: '2026-02-01T00:00:00Z', DueDate: '2026-08-01T00:00:00Z', Note: 'Cho bạn mượn mua xe', IsClosed: false, CreatedAt: '2026-02-01T00:00:00Z', UpdatedAt: '2026-02-01T00:00:00Z', Payments: [
+  { Id: 'd2', AccountId: 'u1', Name: 'Vay bạn bè', Type: 'Borrowed', TotalDebt: 50000000, PaidAmount: 0, RemainingAmount: 50000000, BorrowDate: '2026-04-15T00:00:00Z', DueDate: null, InterestRate: 0, Note: 'Vay tiền mua laptop', IsClosed: false, CreatedAt: '2026-04-15T00:00:00Z', UpdatedAt: '2026-04-15T00:00:00Z', Payments: [] },
+  { Id: 'd3', AccountId: 'u1', Name: 'Cho bạn mượn', Type: 'Lent', TotalDebt: 15000000, PaidAmount: 5000000, RemainingAmount: 10000000, BorrowDate: '2026-02-01T00:00:00Z', DueDate: '2026-08-01T00:00:00Z', InterestRate: null, Note: 'Cho bạn mượn mua xe', IsClosed: false, CreatedAt: '2026-02-01T00:00:00Z', UpdatedAt: '2026-02-01T00:00:00Z', Payments: [
     { Id: 'dp4', DebtId: 'd3', PaymentDate: '2026-03-01T00:00:00Z', Amount: 5000000, RemainingAfterPayment: 10000000, Note: 'Trả đợt 1', CreatedAt: '2026-03-01T00:00:00Z' }
   ]},
-  { Id: 'd4', AccountId: 'u1', Name: 'Thẻ tín dụng', Type: 'Borrowed', TotalDebt: 20000000, PaidAmount: 20000000, RemainingAmount: 0, BorrowDate: '2026-01-10T00:00:00Z', DueDate: '2026-02-10T00:00:00Z', Note: 'Đã trả hết', IsClosed: true, CreatedAt: '2026-01-10T00:00:00Z', UpdatedAt: '2026-02-10T00:00:00Z', Payments: [
+  { Id: 'd4', AccountId: 'u1', Name: 'Thẻ tín dụng', Type: 'Borrowed', TotalDebt: 20000000, PaidAmount: 20000000, RemainingAmount: 0, BorrowDate: '2026-01-10T00:00:00Z', DueDate: '2026-02-10T00:00:00Z', InterestRate: 24, Note: 'Đã trả hết', IsClosed: true, CreatedAt: '2026-01-10T00:00:00Z', UpdatedAt: '2026-02-10T00:00:00Z', Payments: [
     { Id: 'dp5', DebtId: 'd4', PaymentDate: '2026-02-10T00:00:00Z', Amount: 20000000, RemainingAfterPayment: 0, Note: 'Tất toán', CreatedAt: '2026-02-10T00:00:00Z' }
   ]}
 ];
@@ -1132,7 +1181,7 @@ export const debtService = {
     return [];
   },
 
-  create: async (debt: { Name: string; TotalDebt: number; BorrowDate: string; DueDate?: string; Note?: string; Description?: string; Type?: string }, userId: string = getLoggedUserId()): Promise<any> => {
+  create: async (debt: { Name: string; TotalDebt: number; BorrowDate: string; DueDate?: string; Note?: string; Description?: string; InterestRate?: number | null; Type?: string }, userId: string = getLoggedUserId()): Promise<any> => {
     await checkConnection();
     const mockId = 'd-' + Math.random().toString(36).substr(2, 9);
     const now = new Date().toISOString();
@@ -1147,6 +1196,7 @@ export const debtService = {
       DueDate: debt.DueDate || null,
       Note: debt.Note || null,
       Description: debt.Description || null,
+      InterestRate: debt.InterestRate !== undefined ? debt.InterestRate : null,
       Type: debt.Type || 'Borrowed',
       IsClosed: false,
       CreatedAt: now,
@@ -1161,7 +1211,7 @@ export const debtService = {
       return newDebtFrontend;
     }
 
-    try {
+      try {
       const res = await fetch(`${API_URL}/debts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
@@ -1173,6 +1223,7 @@ export const debtService = {
           dueDate: debt.DueDate || null,
           note: debt.Note || null,
           description: debt.Description || null,
+          interestRate: debt.InterestRate !== undefined ? debt.InterestRate : null,
           type: debt.Type || 'Borrowed'
         })
       });
@@ -1187,14 +1238,14 @@ export const debtService = {
     throw new Error('Cannot create debt on server.');
   },
 
-  update: async (id: string, debt: { Name: string; TotalDebt: number; BorrowDate: string; DueDate?: string; Note?: string; Description?: string; Type?: string }, _userId: string = getLoggedUserId()): Promise<void> => {
+  update: async (id: string, debt: { Name: string; TotalDebt: number; BorrowDate: string; DueDate?: string; Note?: string; Description?: string; InterestRate?: number | null; Type?: string }, _userId: string = getLoggedUserId()): Promise<void> => {
     await checkConnection();
     if (isDemoMode) {
       const list = getStorage('fm_debts', DEFAULT_DEBTS);
       const idx = list.findIndex((d: any) => d.Id === id);
       if (idx !== -1) {
         const paid = list[idx].PaidAmount || 0;
-        list[idx] = { ...list[idx], Name: debt.Name, TotalDebt: debt.TotalDebt, RemainingAmount: Math.max(0, debt.TotalDebt - paid), BorrowDate: debt.BorrowDate, DueDate: debt.DueDate || null, Note: debt.Note || null, Description: debt.Description || null, UpdatedAt: new Date().toISOString() };
+        list[idx] = { ...list[idx], Name: debt.Name, TotalDebt: debt.TotalDebt, RemainingAmount: Math.max(0, debt.TotalDebt - paid), BorrowDate: debt.BorrowDate, DueDate: debt.DueDate || null, Note: debt.Note || null, Description: debt.Description || null, InterestRate: debt.InterestRate !== undefined ? debt.InterestRate : null, UpdatedAt: new Date().toISOString() };
         if (list[idx].RemainingAmount <= 0) { list[idx].RemainingAmount = 0; list[idx].IsClosed = true; }
         setStorage('fm_debts', list);
       }
@@ -1212,6 +1263,7 @@ export const debtService = {
           dueDate: debt.DueDate || null,
           note: debt.Note || null,
           description: debt.Description || null,
+          interestRate: debt.InterestRate !== undefined ? debt.InterestRate : null,
           type: debt.Type || 'Borrowed'
         })
       });
@@ -1278,7 +1330,7 @@ export const debtService = {
       if (idx === -1) throw new Error('Debt not found.');
       if (list[idx].IsClosed) throw new Error('Cannot add payment to a closed debt.');
 
-      const newPayment = {
+      const newPayment: Record<string, any> = {
         Id: mockId,
         DebtId: debtId,
         PaymentDate: payment.PaymentDate,
