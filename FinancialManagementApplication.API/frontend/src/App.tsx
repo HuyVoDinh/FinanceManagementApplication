@@ -2341,6 +2341,8 @@ function GoalsPage({ goals, userId, totalCurrent, onRefresh }: {
   const [formAmount, setFormAmount] = useState(0);
   const [formStartDate, setFormStartDate] = useState('');
   const [formDueDate, setFormDueDate] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
 
   const openCreate = () => {
     setEditGoal(null);
@@ -2362,6 +2364,16 @@ function GoalsPage({ goals, userId, totalCurrent, onRefresh }: {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formAmount <= 0) {
+      setErrorMessage(t('Số tiền mục tiêu phải lớn hơn 0'));
+      setShowErrorPopup(true);
+      return;
+    }
+    if (formStartDate && new Date(formStartDate) > new Date(formDueDate)) {
+      setErrorMessage(t('Ngày bắt đầu không thể sau ngày đến hạn'));
+      setShowErrorPopup(true);
+      return;
+    }
     try {
       const payload = {
         Name: formName,
@@ -2377,7 +2389,8 @@ function GoalsPage({ goals, userId, totalCurrent, onRefresh }: {
       setShowModal(false);
       await onRefresh();
     } catch (err: any) {
-      alert(err.message);
+      setErrorMessage(err.message);
+      setShowErrorPopup(true);
     }
   };
 
@@ -2387,7 +2400,8 @@ function GoalsPage({ goals, userId, totalCurrent, onRefresh }: {
       await goalService.delete(id);
       await onRefresh();
     } catch (err: any) {
-      alert(err.message);
+      setErrorMessage(err.message);
+      setShowErrorPopup(true);
     }
   };
 
@@ -2396,7 +2410,8 @@ function GoalsPage({ goals, userId, totalCurrent, onRefresh }: {
       await goalService.start(id);
       await onRefresh();
     } catch (err: any) {
-      alert(err.message);
+      setErrorMessage(err.message);
+      setShowErrorPopup(true);
     }
   };
 
@@ -2406,7 +2421,8 @@ function GoalsPage({ goals, userId, totalCurrent, onRefresh }: {
       await goalService.cancel(id);
       await onRefresh();
     } catch (err: any) {
-      alert(err.message);
+      setErrorMessage(err.message);
+      setShowErrorPopup(true);
     }
   };
 
@@ -2576,6 +2592,24 @@ function GoalsPage({ goals, userId, totalCurrent, onRefresh }: {
         </table>
       </div>
 
+      {/* Error Popup */}
+      {showErrorPopup && (
+        <div className="modal-overlay" style={{ zIndex: 3000 }}>
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ color: '#ef4444' }}>{t('Lỗi')}</h3>
+              <button className="modal-close" onClick={() => setShowErrorPopup(false)}>✕</button>
+            </div>
+            <div style={{ padding: '20px', fontSize: '0.9rem' }}>
+              {errorMessage}
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-primary" onClick={() => setShowErrorPopup(false)}>{t('Đóng')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Goal Modal */}
       {showModal && (
         <div className="modal-overlay">
@@ -2641,7 +2675,7 @@ function MoneyInput({ value, onChange, className = '', style, placeholder }: {
   }, [value, isFocused]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
+    const raw = e.target.value.replace(/-/g, '');
     setDisplay(raw);
     onChange(parseInputNumber(raw));
   };

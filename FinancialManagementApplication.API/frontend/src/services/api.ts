@@ -928,6 +928,24 @@ const generateDemoCashFlowGrowth = (mode: string, year?: number) => {
   return { mode, data: [] };
 };
 
+// Calculate goal status based on dates and current total value
+const calcGoalStatus = (startDate: string | null | undefined, dueDate: string, targetAmount: number): string => {
+  const now = new Date();
+  const due = new Date(dueDate);
+  const assets = getStorage('fm_assets', []);
+  const totalCurrent = assets.reduce((sum: number, a: any) => sum + (Number(a.CurrentValue) || 0), 0);
+
+  if (due < now) {
+    return totalCurrent >= targetAmount ? 'Successed' : 'Failed';
+  }
+
+  if (!startDate || new Date(startDate) > now) {
+    return 'NotStarted';
+  }
+
+  return totalCurrent >= targetAmount ? 'Successed' : 'Processing';
+};
+
 // Goal mapper
 const mapGoalToFrontend = (g: any) => ({
   Id: g.id || g.Id,
@@ -970,6 +988,9 @@ export const goalService = {
 
   create: async (goal: { Name: string; TargetAmount: number; StartDate?: string; DueDate: string }, userId: string = getLoggedUserId()): Promise<any> => {
     await checkConnection();
+
+    const status = calcGoalStatus(goal.StartDate, goal.DueDate, goal.TargetAmount);
+
     const mockId = 'g-' + Math.random().toString(36).substr(2, 9);
     const newGoalFrontend = {
       Id: mockId,
@@ -978,7 +999,7 @@ export const goalService = {
       TargetAmount: goal.TargetAmount,
       StartDate: goal.StartDate || null,
       DueDate: goal.DueDate,
-      Status: 'NotStarted',
+      Status: status,
       CreatedAt: new Date().toISOString(),
       UpdatedAt: new Date().toISOString()
     };
@@ -1019,7 +1040,8 @@ export const goalService = {
       const list = getStorage('fm_goals', DEFAULT_GOALS);
       const idx = list.findIndex(g => g.Id === id);
       if (idx !== -1) {
-        list[idx] = { ...list[idx], Name: goal.Name, TargetAmount: goal.TargetAmount, StartDate: goal.StartDate || null, DueDate: goal.DueDate, UpdatedAt: new Date().toISOString() };
+        const status = calcGoalStatus(goal.StartDate, goal.DueDate, goal.TargetAmount);
+        list[idx] = { ...list[idx], Name: goal.Name, TargetAmount: goal.TargetAmount, StartDate: goal.StartDate || null, DueDate: goal.DueDate, Status: status, UpdatedAt: new Date().toISOString() };
         setStorage('fm_goals', list);
       }
       return;
