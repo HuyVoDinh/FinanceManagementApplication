@@ -385,7 +385,8 @@ export default function App() {
 
   // Setup mode handlers
   const handleStartSetup = () => {
-    setSetupAmount(portfolio?.Amount || 0);
+    const totalCurrent = allocations.reduce((sum, al) => sum + (al.CurrentAmount || 0), 0);
+    setSetupAmount(Math.max(portfolio?.Amount || 0, totalCurrent));
     setSetupAllocations(allocations.map(al => ({
       ...al,
       setupAmount: al.CurrentAmount
@@ -412,11 +413,7 @@ export default function App() {
     const otherTotal = setupAllocations
       .filter(al => al.Id !== id)
       .reduce((sum, al) => sum + (al.setupAmount || 0), 0);
-    const otherPercent = setupAllocations
-      .filter(al => al.Id !== id)
-      .reduce((sum, al) => sum + (setupAmount > 0 ? ((al.setupAmount || 0) / setupAmount) * 100 : 0), 0);
     if (otherTotal + newAmount > setupAmount) return;
-    if (otherPercent + (setupAmount > 0 ? (newAmount / setupAmount) * 100 : 0) > 100) return;
     const updated = setupAllocations.map(al => {
       if (al.Id === id) {
         const newPercent = setupAmount > 0 ? (newAmount / setupAmount) * 100 : 0;
@@ -429,9 +426,8 @@ export default function App() {
 
   const handleSetupAddAllocation = () => {
     const totalAllocated = setupAllocations.reduce((sum, al) => sum + (al.setupAmount || 0), 0);
-    const totalPercent = setupAllocations.reduce((sum, al) => sum + al.TargetPercentage, 0);
-    if (totalAllocated > setupAmount || totalPercent > 100) {
-      setError(t('Không thể thêm danh mục mới vì đã đạt hoặc vượt quá phân bổ gốc / 100%.'));
+    if (totalAllocated >= setupAmount) {
+      setError(t('Không thể thêm danh mục mới vì đã đạt hoặc vượt quá phân bổ gốc.'));
       return;
     }
     const newId = 'al-' + Math.random().toString(36).substr(2, 9);
@@ -485,9 +481,9 @@ export default function App() {
         setError(t('Vui lòng nhập tên cho tất cả danh mục.'));
         return;
       }
-      const totalPct = setupAllocations.reduce((sum, al) => sum + al.TargetPercentage, 0);
-      if (totalPct > 100) {
-        setError(t('Tổng tỉ trọng vượt quá 100%. Vui lòng điều chỉnh lại.'));
+      const totalAmount = setupAllocations.reduce((sum, al) => sum + (al.setupAmount || 0), 0);
+      if (totalAmount > setupAmount) {
+        setError(t('Tổng số tiền danh mục vượt quá phân bổ gốc. Vui lòng điều chỉnh lại.'));
         return;
       }
 
